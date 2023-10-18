@@ -780,11 +780,12 @@ CRAPI CRCODE CRLinGet(CRSTRUCTURE lin, CRLVOID* data, CRINT64 seek)
 
 //什么也不做，仅占位
 void _struc_do_nothing_(CRLVOID data) { return; }
+void _clear_nothing_(CRSTRUCTURE s, DSCallback cal) { return; }
 
 void _clear_dyn_(CRSTRUCTURE s, DSCallback cal)
 {
 	PCRDYN dyn = s;
-	for (int i = 0; i < dyn->pub.total; i++) cal(dyn->arr[i]);
+	for (int i = 0; i < dyn->pub.total; i++) cal((CRLVOID)(CRUINT64)(dyn->arr[i]));
 	free(dyn->arr);
 }
 
@@ -826,7 +827,7 @@ const _Struct_Clear_Func_ clearFuncs[] =
 	_clear_dyn_,
 	_clear_tree_,
 	_clear_linear_,
-	_struc_do_nothing_
+	_clear_nothing_
 };
 
 CRAPI CRCODE CRFreeStructure(CRSTRUCTURE s, DSCallback cal)

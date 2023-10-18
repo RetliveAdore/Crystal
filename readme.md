@@ -22,12 +22,25 @@ typedef void(*DSCallback)(CRLVOID data)
 &emsp;假如此函数（或函数指针）有明显的功能性，就会优先将关联的功能缩写作为前缀：DSCallback（**D**-ata-**S**-tructure）。
 &emsp;一般来说，和Crystal相关的函数和函数指针都带有CR前缀
 ***
-所有**宏定义**采用大写，意义单元之间采用下划线“_”隔开，例如：
+所有的**宏定义**采用大写，意义单元之间采用下划线“_”隔开，例如：
 ~~~C
 #define CRV_MAJOR 0
 #define CRV_MINOR 0
 ~~~
 &emsp;大部分和Crystal相关的宏定义会有CR前缀
+***
+所有的**内部函数**命名采用首位下划线格式，意义单元采用下划线“_”隔开，不得使用大写字母，例如：
+~~~C
+static void _clear_callback_(CRLVOID data)
+{
+    //...
+}
+static void _on_close_(void)
+{
+	//...
+}
+~~~
+&emsp;内部函数实际上不会暴露在用户环境中，但是为了在编写源代码时易于区分，使用自己的命名方式规范
 ## 使用
 &emsp;将Crystal包含进你的项目，你可以决定使用静态库或者动态库，也可以添加自己的第三方模块。官方Release（如果有的话）不会提供静态库版本，想要使用需要自行编译，在使用介绍完毕之后将会讲述编译方法和环境。
 &emsp;作者的建议是使用cmake构建项目，也将介绍如何在cmake中使用Crystal。首先：

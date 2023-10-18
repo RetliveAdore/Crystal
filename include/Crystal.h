@@ -24,8 +24,8 @@ typedef union
 }CRVERSION;
 #define CRV_MAJOR 0
 #define CRV_MINOR 0
-#define CRV_BUILD 0  //每次commit都要记得至少把build版本加一
-#define CRV_REVIS 4  //这个几乎可以随便写，但是只能变大不准减小
+#define CRV_BUILD 1  //每次commit都要记得至少把build版本加一
+#define CRV_REVIS 2  //这个几乎可以随便写，但是只能变大不准减小
 
 #define CRERR_CORE_FINE    0
 #define CRERR_CORE_UNINIT  1
