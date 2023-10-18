@@ -7,7 +7,7 @@ CRSTRUCTURE bin = NULL;
 static const char* errs[] =
 {
 	"Fine\0",
-	"out of memory\0",
+	"please init Crystal first\0",
 	"invalid wipe function\0"
 };
 static const char* errNow = NULL;

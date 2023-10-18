@@ -24,8 +24,8 @@ typedef union
 }CRVERSION;
 #define CRV_MAJOR 0
 #define CRV_MINOR 0
-#define CRV_BUILD 1  //每次commit都要记得至少把build版本加一
-#define CRV_REVIS 2  //这个几乎可以随便写，但是只能变大不准减小
+#define CRV_BUILD 2  //每次commit都要记得至少把build版本加一
+#define CRV_REVIS 9  //这个几乎可以随便写，但是只能变大不准减小
 
 #define CRERR_CORE_FINE    0
 #define CRERR_CORE_UNINIT  1
@@ -61,6 +61,7 @@ extern "C" {
 
 CRAPI CRCODE CRInit();
 CRAPI const CRVERSION* CRVer();
+CRAPI const char* CRErrorCore(CRCODE errcode);
 
 //
 
@@ -73,8 +74,6 @@ CRAPI const CRVERSION* CRVer();
 //需要注意的一点是，在某些平台标准C库会提早释放，导致像printf之类的无法使用
 //所以说擦屁股函数最好不要依赖于标准库，但是Crystal库里面的函数是可以使用的
 CRAPI CRCODE CRAddtoTrashBin(TrashBinFunc WipeYourAss);
-
-CRAPI const char* CRErrorCore(CRCODE errcode);
 
 #ifdef __cplusplus
 }

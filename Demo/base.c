@@ -36,7 +36,11 @@ void GetCommand()
 
 CRBOOL ProcessCommand(int argc, char** argv)
 {
-	if (Compare(command, "quit"))
+	if (
+		Compare(command, "quit") ||
+		Compare(command, "exit") ||
+		Compare(command, "close")
+		)
 		return CRFALSE;
 	else if (Compare(command, "Demo1"))
 	{
