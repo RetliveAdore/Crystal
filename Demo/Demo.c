@@ -12,7 +12,7 @@ int main(int argc, char** argv)
 	if (code = CRInit() < 0)
 		return 1;
 	if (code = CRAddtoTrashBin(CRVersionOnExit) != 0)
-		printf("Add error: %s\n", CRErrorCore(code));
+		printf("Add error: %s\n", CRGetError(code));
 	
 	CRUINT8 sub = 0;
 	while (1)

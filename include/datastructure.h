@@ -3,17 +3,6 @@
 
 #include "crdefs.h"
 
-/*
-错误代码：
-*/
-
-#define CRERR_STRUC_FINE     0
-#define CRERR_STRUC_OUTOFMEM 1
-#define CRERR_STRUC_INVALID  2
-#define CRERR_STRUC_RESIZE   3
-#define CRERR_STRUC_EMPTY    4
-#define CRERR_STRUC_NOTFOND  5
-
 //数据结构就是数字生命基础
 typedef CRLVOID CRSTRUCTURE;
 typedef CRSTRUCTURE* PCRSTRUCTURE;
@@ -25,13 +14,6 @@ typedef CRSTRUCTURE* PCRSTRUCTURE;
 可以传入函数指针来解决
 */
 typedef void(*DSCallback)(CRLVOID data);
-
-/**
-传入错误代码查询错误，传入0则默认查询最近出现的错误
-对于那种不返回CRCODE但有可能出错的函数，传入0来查询错误
-在查询动作之后，默认错误会置零，等待下次发生错误以供查询
-*/
-CRAPI const char* CRErrorStructure(CRCODE errcode);
 
 /**
 分别为：创建——动态数组、键值树、线性表、环形数组

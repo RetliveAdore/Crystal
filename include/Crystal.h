@@ -24,12 +24,17 @@ typedef union
 }CRVERSION;
 #define CRV_MAJOR 0
 #define CRV_MINOR 0
-#define CRV_BUILD 2  //每次commit都要记得至少把build版本加一
-#define CRV_REVIS 9  //这个几乎可以随便写，但是只能变大不准减小
+#define CRV_BUILD 2   //每次commit都要记得至少把build版本加一
+#define CRV_REVIS 12  //这个几乎可以随便写，但是只能变大不准减小
 
-#define CRERR_CORE_FINE    0
-#define CRERR_CORE_UNINIT  1
-#define CRERR_CORE_INVALID 2
+#define CRERR_FINE      0
+#define CRERR_UNINITED  1
+#define CRERR_INVALID   2
+#define CRERR_NOTFOUND  3
+#define CRERR_OUTOFMEM  4
+#define CRERR_CONFLICT  5
+//按顺序从小到大，此宏定义用于指示边界
+#define CRERR_MAXCODE   6
 
 //在引擎中不存在的功能可以通过添加第三方模块来添加
 typedef CRINT64 CRMODULE;
@@ -61,7 +66,19 @@ extern "C" {
 
 CRAPI CRCODE CRInit();
 CRAPI const CRVERSION* CRVer();
-CRAPI const char* CRErrorCore(CRCODE errcode);
+
+/*
+传入的错误代码不要小于1000
+假如没有将crystal初始化，将返回CRFALSE
+假如传入的错误代码是内置代码，将会使其更新为默认错误
+重复投送相同的错误代码，后来者将会覆盖之前的description
+*/
+CRAPI CRBOOL CRThrowError(CRCODE errcode, const char* desc);
+/*
+传入0默认查询当前发生的错误
+假如查询不到错误或者没有错误，将固定返回Fine，查询之后将移除该错误
+*/
+CRAPI const char* CRGetError(CRCODE errcode);
 
 //
 

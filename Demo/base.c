@@ -36,6 +36,8 @@ void GetCommand()
 
 CRBOOL ProcessCommand(int argc, char** argv)
 {
+	if (!strlen(command))
+		return CRTRUE;
 	if (
 		Compare(command, "quit") ||
 		Compare(command, "exit") ||
@@ -44,7 +46,7 @@ CRBOOL ProcessCommand(int argc, char** argv)
 		return CRFALSE;
 	else if (Compare(command, "Demo1"))
 	{
-		printf("return value: %d\n", Demo1(argc, argv));
+		printf("返回值：%d\n", Demo1(argc, argv));
 	}
 	else
 		printf("invalid command: %s\n", command);

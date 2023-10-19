@@ -8,12 +8,6 @@ typedef CRLVOID CRTHREAD;
 
 //初始化之后才能正常使用全部功能
 CRAPI CRCODE CRBasicInit();
-CRAPI const char* CRErrorBasic(CRCODE errcode);
-
-#define CRERR_BAS_FIME     0
-#define CRERR_BAS_UNINIT   1
-#define CRERR_BAS_OUTOFMEM 2
-#define CRERR_BAS_INVALID  3
 
 //
 
@@ -31,6 +25,12 @@ CRAPI CRTIMER CRTimer();
 CRAPI double CRTimerPeek(CRTIMER timer);
 CRAPI double CRTimerMark(CRTIMER timer);
 CRAPI CRCODE CRTimerClose(CRTIMER timer);
+
+//
+
+/*
+* 和多线程相关的函数，包含创建、分离、等待线程，线程锁之类
+*/
 
 #ifdef __cplusplus
 }

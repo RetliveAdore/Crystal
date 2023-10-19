@@ -1,6 +1,7 @@
 ﻿#include <Crystal.h>
 #include <malloc.h>
 #include <string.h>
+#include <crerrors.h>
 
 #define DYN 0x00
 #define TRE 0x01
@@ -10,21 +11,10 @@
 //容量限制是512MB
 #define DYN_MAX (sizeof(CRUINT8) << 29)
 
-#define IF_FAILED_QUIT(p) if(!(p)) {errNow = errs[CRERR_STRUC_OUTOFMEM]; return NULL; }
+#define IF_FAILED_QUIT(p) if(!(p)) {CRThrowError(CRERR_OUTOFMEM, NULL); return NULL; }
 #define INIT_PUB(t, p) (p)->pub.type = (t); (p)->pub.total = 0;
 #define COPY_NODE(dst, src) dst->id = src->id; dst->data = src->data;
 #define GET_MOD(num, mod) if ((num) < 0) (num) = -(-(num) % (mod)); else if ((num > 0)) (num) = ((num) % (mod));
-
-static const char* errs[] =
-{
-	"Fine\0",
-	"out of memory\0",
-	"invalid structure\0",
-	"dyn resize failed\0",
-	"dyn is empty\0",
-	"item not found\n"
-};
-static const char* errNow = NULL;
 
 //共有的数据头
 typedef struct
@@ -93,7 +83,7 @@ CRAPI CRSTRUCTURE CRDynamic()
 	if (!pInner->arr)
 	{
 		free(pInner);
-		errNow = errs[CRERR_STRUC_OUTOFMEM];
+		CRThrowError(CRERR_OUTOFMEM, NULL);
 		return NULL;
 	}
 	INIT_PUB(DYN, pInner);
@@ -124,21 +114,6 @@ CRAPI CRSTRUCTURE CRLoop()
 	return NULL;
 }
 
-CRAPI const char* CRErrorStructure(CRCODE errcode)
-{
-	if (!errNow)
-		errNow = errs[0];
-	const char* ret = errNow;
-	if (errcode && errcode < sizeof(errs) / sizeof(const char*))
-		ret = errs[errcode];
-	else if (!errcode)
-		ret = errNow;
-	else
-		ret = "invalid errcode!";
-	errNow = errs[0];
-	return ret;
-}
-
 //
 //
 //动态数组的实现
@@ -163,7 +138,7 @@ CRAPI CRCODE CRDynPush(CRSTRUCTURE dyn, CRUINT8 data)
 {
 	PCRDYN pInner = dyn;
 	if (!pInner || pInner->pub.type != DYN)
-		return CRERR_STRUC_INVALID;
+		return CRERR_INVALID;
 	if (pInner->pub.total < pInner->capacity)
 	{
 		pInner->arr[pInner->pub.total++] = data;
@@ -171,11 +146,17 @@ CRAPI CRCODE CRDynPush(CRSTRUCTURE dyn, CRUINT8 data)
 	}
 	//需要扩容的情况，不得超过容量限制
 	if (pInner->capacity >= DYN_MAX)
-		return CRERR_STRUC_RESIZE;
+	{
+		CRThrowError(CRERR_STRUCTURE_FULL, CRDES_STRUCTURE_FULL);
+		return CRERR_STRUCTURE_FULL;
+	}
 	pInner->capacity <<= 1;
 	CRUINT8* tmp = _sizeup_cr_(pInner->arr, pInner->pub.total, pInner->capacity);
 	if (!tmp)
-		return CRERR_STRUC_RESIZE;
+	{
+		CRThrowError(CRERR_STRUCTURE_RESIZE, CRDES_STRUCTURE_RESIZE);
+		return CRERR_STRUCTURE_RESIZE;
+	}
 	tmp[pInner->pub.total++] = data;
 	pInner->arr = tmp;
 	return 0;
@@ -185,7 +166,7 @@ CRAPI CRCODE CRDynSet(CRSTRUCTURE dyn, CRUINT8 data, CRUINT32 sub)
 {
 	PCRDYN pInner = dyn;
 	if (!pInner || pInner->pub.type != DYN)
-		return CRERR_STRUC_INVALID;
+		return CRERR_INVALID;
 	if (sub < pInner->pub.total)
 		pInner->arr[sub] = data;
 	else if (sub < pInner->capacity)
@@ -198,13 +179,16 @@ CRAPI CRCODE CRDynSet(CRSTRUCTURE dyn, CRUINT8 data, CRUINT32 sub)
 		while (pInner->capacity < sub) pInner->capacity <<= 1;
 		CRUINT8* tmp = _sizeup_cr_(pInner->arr, pInner->pub.total, pInner->capacity);
 		if (!tmp)
-			return CRERR_STRUC_OUTOFMEM;
+			return CRERR_OUTOFMEM;
 		tmp[sub++] = data;
 		pInner->arr = tmp;
 		pInner->pub.total = sub;
 	}
 	else
-		return CRERR_STRUC_RESIZE;
+	{
+		CRThrowError(CRERR_STRUCTURE_FULL, CRDES_STRUCTURE_FULL);
+		return CRERR_STRUCTURE_FULL;
+	}
 	return 0;
 }
 
@@ -212,9 +196,9 @@ CRAPI CRCODE CRDynPop(CRSTRUCTURE dyn, CRUINT8* data)
 {
 	PCRDYN pInner = dyn;
 	if (!pInner || pInner->pub.type != DYN)
-		return CRERR_STRUC_INVALID;
+		return CRERR_INVALID;
 	if (pInner->pub.total == 0)
-		return CRERR_STRUC_EMPTY;
+		return CRERR_NOTFOUND;
 	pInner->pub.total--;
 	*data = pInner->arr[pInner->pub.total];
 	if (pInner->pub.total < pInner->capacity >> 1 && pInner->capacity > 32)//可以释放一些空间
@@ -233,7 +217,7 @@ CRAPI CRCODE CRDynSeek(CRSTRUCTURE dyn, CRUINT8* data, CRUINT32 sub)
 		*data = pInner->arr[sub];
 		return 0;
 	}
-	return CRERR_STRUC_NOTFOND;
+	return CRERR_NOTFOUND;
 }
 
 CRAPI CRUINT8* CRDynCopy(CRSTRUCTURE dyn, CRUINT32* size)
@@ -241,12 +225,12 @@ CRAPI CRUINT8* CRDynCopy(CRSTRUCTURE dyn, CRUINT32* size)
 	PCRDYN pInner = dyn;
 	if (!pInner || pInner->pub.type != DYN)
 	{
-		errNow = errs[CRERR_STRUC_INVALID];
+		CRThrowError(CRERR_INVALID, NULL);
 		return NULL;
 	}
 	if (!pInner->pub.total)
 	{
-		errNow = errs[CRERR_STRUC_EMPTY];
+		CRThrowError(CRERR_NOTFOUND, NULL);
 		return NULL;
 	}
 	CRUINT8* out = malloc(pInner->pub.total * sizeof(CRUINT8));
@@ -331,7 +315,7 @@ CRAPI CRCODE CRTreePut(CRSTRUCTURE tree, CRLVOID data, CRUINT64 id)
 {
 	PCRTREE pInner = tree;
 	if (!pInner || pInner->pub.type != TRE)
-		return CRERR_STRUC_INVALID;
+		return CRERR_INVALID;
 	if (!pInner->root)
 	{
 		pInner->root = _create_treenode_cr_(id, data, NULL);
@@ -352,7 +336,7 @@ CRAPI CRCODE CRTreePut(CRSTRUCTURE tree, CRLVOID data, CRUINT64 id)
 			else
 			{
 				node->left = _create_treenode_cr_(id, data, node);
-				if (!node->left) return CRERR_STRUC_OUTOFMEM;
+				if (!node->left) return CRERR_OUTOFMEM;
 				node = node->left;
 				break;
 			}
@@ -363,7 +347,7 @@ CRAPI CRCODE CRTreePut(CRSTRUCTURE tree, CRLVOID data, CRUINT64 id)
 			else
 			{
 				node->right = _create_treenode_cr_(id, data, node);
-				if (!node->right) return CRERR_STRUC_OUTOFMEM;
+				if (!node->right) return CRERR_OUTOFMEM;
 				node = node->right;
 				break;
 			}
@@ -424,9 +408,9 @@ CRAPI CRCODE CRTreeSeek(CRSTRUCTURE tree, CRLVOID* data, CRUINT64 id)
 {
 	PCRTREE pInner = tree;
 	if (!pInner || pInner->pub.type != TRE)
-		return CRERR_STRUC_INVALID;
+		return CRERR_INVALID;
 	if (!pInner->root)
-		return CRERR_STRUC_EMPTY;
+		return CRERR_NOTFOUND;
 	PTREENODE node = pInner->root;
 	while (1)
 	{
@@ -439,7 +423,7 @@ CRAPI CRCODE CRTreeSeek(CRSTRUCTURE tree, CRLVOID* data, CRUINT64 id)
 			node = node->right;
 		else break;
 	}
-	return CRERR_STRUC_NOTFOND;
+	return CRERR_NOTFOUND;
 }
 
 //
@@ -625,9 +609,9 @@ CRAPI CRCODE CRTreeGet(CRSTRUCTURE tree, CRLVOID* data, CRUINT64 id)
 {
 	PCRTREE pInner = tree;
 	if (!pInner || pInner->pub.type != TRE)
-		return CRERR_STRUC_INVALID;
+		return CRERR_INVALID;
 	if (!pInner->root)
-		return CRERR_STRUC_EMPTY;
+		return CRERR_NOTFOUND;
 	PTREENODE node = pInner->root;
 	while (1)
 	{
@@ -638,7 +622,7 @@ CRAPI CRCODE CRTreeGet(CRSTRUCTURE tree, CRLVOID* data, CRUINT64 id)
 		else if (node->id < id && node->right)
 			node = node->right;
 		else
-			return CRERR_STRUC_NOTFOND;
+			return CRERR_NOTFOUND;
 	}
 	*data = node->data;
 	//开始移除及修正
@@ -699,9 +683,9 @@ CRAPI CRCODE CRLinPut(CRSTRUCTURE lin, CRLVOID data, CRINT64 seek)
 {
 	PCRLINEAR pInner = lin;
 	if (!pInner || pInner->pub.type != LIN)
-		return CRERR_STRUC_INVALID;
+		return CRERR_INVALID;
 	PLINEARNODE ins = malloc(sizeof(LINEARNODE));
-	if (!ins) return CRERR_STRUC_OUTOFMEM;
+	if (!ins) return CRERR_OUTOFMEM;
 	ins->data = data;
 	GET_MOD(seek, pInner->pub.total);
 	if (!pInner->hook)
@@ -734,9 +718,9 @@ CRAPI CRCODE CRLinSeek(CRSTRUCTURE lin, CRLVOID* data, CRINT64 seek)
 {
 	PCRLINEAR pInner = lin;
 	if (!pInner || pInner->pub.type != LIN)
-		return CRERR_STRUC_INVALID;
+		return CRERR_INVALID;
 	if (!pInner->hook)
-		return CRERR_STRUC_EMPTY;
+		return CRERR_NOTFOUND;
 	PLINEARNODE node = pInner->hook;
 	GET_MOD(seek, pInner->pub.total);
 	if (seek < 0)
@@ -751,9 +735,9 @@ CRAPI CRCODE CRLinGet(CRSTRUCTURE lin, CRLVOID* data, CRINT64 seek)
 {
 	PCRLINEAR pInner = lin;
 	if (!pInner || pInner->pub.type != LIN)
-		return CRERR_STRUC_INVALID;
+		return CRERR_INVALID;
 	if (!pInner->hook)
-		return CRERR_STRUC_EMPTY;
+		return CRERR_NOTFOUND;
 	PLINEARNODE node = pInner->hook;
 	GET_MOD(seek, pInner->pub.total);
 	if (seek < 0)
@@ -834,11 +818,11 @@ CRAPI CRCODE CRFreeStructure(CRSTRUCTURE s, DSCallback cal)
 {
 	CRSTRUCTUREPUB* pub = s;
 	if (!pub)
-		return CRERR_STRUC_INVALID;
+		return CRERR_INVALID;
 	if (!cal)
 		cal = _struc_do_nothing_;
 	if (pub->type < 0 || pub->type > 3)
-		return CRERR_STRUC_INVALID;
+		return CRERR_INVALID;
 	clearFuncs[pub->type](s, cal);
 	free(s);
 	return 0;

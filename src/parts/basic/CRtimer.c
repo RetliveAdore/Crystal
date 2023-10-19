@@ -48,7 +48,7 @@ CRAPI CRTIMER CRTimer()
 		timer->magic = TIMER_MAGIC;
 		return timer;
 	}
-	errNowBasic = errsBasic[CRERR_BAS_OUTOFMEM];
+	CRThrowError(CRERR_OUTOFMEM, NULL);
 	return NULL;
 }
 
@@ -56,7 +56,7 @@ CRAPI CRCODE CRTimerClose(CRTIMER timer)
 {
 	PCRTIMERINNER pInner = (PCRTIMERINNER)timer;
 	if (!pInner || pInner->magic != TIMER_MAGIC)
-		return CRERR_BAS_INVALID;
+		return CRERR_INVALID;
 	free(pInner);
 	return 0;
 }
@@ -65,7 +65,7 @@ CRAPI double CRTimerPeek(CRTIMER timer)
 {
 	if (!crInitedBasic)
 	{
-		errNowBasic = errsBasic[CRERR_BAS_UNINIT];
+		CRThrowError(CRERR_UNINITED, NULL);
 		return 0.0f;
 	}
 #ifdef CR_WINDOWS
@@ -76,7 +76,7 @@ CRAPI double CRTimerPeek(CRTIMER timer)
 	PCRTIMERINNER pInner = (PCRTIMERINNER)timer;
 	if (!pInner || pInner->magic != TIMER_MAGIC)
 	{
-		errNowBasic = errsBasic[CRERR_BAS_INVALID];
+		CRThrowError(CRERR_INVALID, NULL);
 		return 0.0f;
 	}
 #ifdef CR_WINDOWS
@@ -90,7 +90,7 @@ CRAPI double CRTimerMark(CRTIMER timer)
 {
 	if (!crInitedBasic)
 	{
-		errNowBasic = errsBasic[CRERR_BAS_UNINIT];
+		CRThrowError(CRERR_UNINITED, NULL);
 		return 0.0f;
 	}
 #ifdef CR_WINDOWS
@@ -101,7 +101,7 @@ CRAPI double CRTimerMark(CRTIMER timer)
 	PCRTIMERINNER pInner = (PCRTIMERINNER)timer;
 	if (!pInner || pInner->magic != TIMER_MAGIC)
 	{
-		errNowBasic = errsBasic[CRERR_BAS_INVALID];
+		CRThrowError(CRERR_INVALID, NULL);
 		return 0.0f;
 	}
 	double now = 0;
