@@ -3,6 +3,12 @@
 #include <string.h>
 #include <crerrors.h>
 
+#ifdef CR_WINDOWS
+#include <Windows.h>
+#elif defined CR_LINUX
+#include <pthread.h>
+#endif
+
 #define DYN 0x00
 #define TRE 0x01
 #define LIN 0x02
@@ -11,17 +17,41 @@
 //容量限制是512MB
 #define DYN_MAX (sizeof(CRUINT8) << 29)
 
-#define IF_FAILED_QUIT(p) if(!(p)) {CRThrowError(CRERR_OUTOFMEM, NULL); return NULL; }
-#define INIT_PUB(t, p) (p)->pub.type = (t); (p)->pub.total = 0;
-#define COPY_NODE(dst, src) dst->id = src->id; dst->data = src->data;
-#define GET_MOD(num, mod) if ((num) < 0) (num) = -(-(num) % (mod)); else if ((num > 0)) (num) = ((num) % (mod));
+#define GET_MOD(num, mod) { if ((num) < 0) (num) = -(-(num) % (mod)); else if ((num > 0)) (num) = ((num) % (mod)); }
+
+#include <stdio.h>
+FILE* fp = NULL;
 
 //共有的数据头
 typedef struct
 {
+#ifdef CR_WINDOWS
+	CRITICAL_SECTION cs;  //确保多线程安全
+#elif defined CR_LINUX
+	pthread_mutex_t cs;  //确保多线程安全
+#endif
 	CRUINT8 type;  //用于表示据结构类型
-	CRUINT64 total;  //用于表示现在有多少个元素
+	CRUINT32 total;  //用于表示现在有多少个元素
 } CRSTRUCTUREPUB;
+
+#ifdef CR_LINUX  //直接使出那一招，简单方便又快捷
+void InitializeCriticalSection(pthread_mutex_t* mt)
+{
+	pthread_mutex_init(mt, NULL);
+}
+void DeleteCriticalSection(pthread_mutex_t* mt)
+{
+	pthread_mutex_destroy(mt);
+}
+void EnterCriticalSection(pthread_mutex_t* mt)
+{
+	pthread_mutex_lock(mt);
+}
+void LeaveCriticalSection(pthread_mutex_t* mt)
+{
+	pthread_mutex_unlock(mt);
+}
+#endif
 
 //
 
@@ -36,7 +66,7 @@ typedef struct
 
 typedef struct treenode
 {
-	CRINT64 id;
+	CRINT64 key;
 	CRLVOID data;
 	CRBOOL red;
 	struct treenode* parent;
@@ -78,7 +108,11 @@ typedef struct
 CRAPI CRSTRUCTURE CRDynamic()
 {
 	PCRDYN pInner = malloc(sizeof(CRDYN));
-	IF_FAILED_QUIT(pInner);
+	if (!pInner)
+	{
+		CRThrowError(CRERR_OUTOFMEM, NULL);
+		return NULL;
+	}
 	pInner->arr = malloc(sizeof(CRUINT8));
 	if (!pInner->arr)
 	{
@@ -86,7 +120,9 @@ CRAPI CRSTRUCTURE CRDynamic()
 		CRThrowError(CRERR_OUTOFMEM, NULL);
 		return NULL;
 	}
-	INIT_PUB(DYN, pInner);
+	pInner->pub.type = DYN;
+	pInner->pub.total = 0;
+	InitializeCriticalSection(&(pInner->pub.cs));
 	pInner->capacity = 1;
 	return pInner;
 }
@@ -94,8 +130,14 @@ CRAPI CRSTRUCTURE CRDynamic()
 CRAPI CRSTRUCTURE CRTree()
 {
 	PCRTREE pInner = malloc(sizeof(CRTREE));
-	IF_FAILED_QUIT(pInner);
-	INIT_PUB(TRE, pInner);
+	if (!pInner)
+	{
+		CRThrowError(CRERR_OUTOFMEM, NULL);
+		return NULL;
+	}
+	pInner->pub.type = TRE;
+	pInner->pub.total = 0;
+	InitializeCriticalSection(&(pInner->pub.cs));
 	pInner->root = NULL;
 	return pInner;
 }
@@ -103,8 +145,14 @@ CRAPI CRSTRUCTURE CRTree()
 CRAPI CRSTRUCTURE CRLinear()
 {
 	PCRLINEAR pInner = malloc(sizeof(CRLINEAR));
-	IF_FAILED_QUIT(pInner);
-	INIT_PUB(LIN, pInner);
+	if (!pInner)
+	{
+		CRThrowError(CRERR_OUTOFMEM, NULL);
+		return NULL;
+	}
+	pInner->pub.type = LIN;
+	pInner->pub.total = 0;
+	InitializeCriticalSection(&(pInner->pub.cs));
 	pInner->hook = NULL;
 	return pInner;
 }
@@ -139,15 +187,18 @@ CRAPI CRCODE CRDynPush(CRSTRUCTURE dyn, CRUINT8 data)
 	PCRDYN pInner = dyn;
 	if (!pInner || pInner->pub.type != DYN)
 		return CRERR_INVALID;
+	EnterCriticalSection(&(pInner->pub.cs));
 	if (pInner->pub.total < pInner->capacity)
 	{
 		pInner->arr[pInner->pub.total++] = data;
+		LeaveCriticalSection(&(pInner->pub.cs));
 		return 0;
 	}
 	//需要扩容的情况，不得超过容量限制
 	if (pInner->capacity >= DYN_MAX)
 	{
 		CRThrowError(CRERR_STRUCTURE_FULL, CRDES_STRUCTURE_FULL);
+		LeaveCriticalSection(&(pInner->pub.cs));
 		return CRERR_STRUCTURE_FULL;
 	}
 	pInner->capacity <<= 1;
@@ -155,10 +206,12 @@ CRAPI CRCODE CRDynPush(CRSTRUCTURE dyn, CRUINT8 data)
 	if (!tmp)
 	{
 		CRThrowError(CRERR_STRUCTURE_RESIZE, CRDES_STRUCTURE_RESIZE);
+		LeaveCriticalSection(&(pInner->pub.cs));
 		return CRERR_STRUCTURE_RESIZE;
 	}
 	tmp[pInner->pub.total++] = data;
 	pInner->arr = tmp;
+	LeaveCriticalSection(&(pInner->pub.cs));
 	return 0;
 }
 
@@ -167,6 +220,7 @@ CRAPI CRCODE CRDynSet(CRSTRUCTURE dyn, CRUINT8 data, CRUINT32 sub)
 	PCRDYN pInner = dyn;
 	if (!pInner || pInner->pub.type != DYN)
 		return CRERR_INVALID;
+	EnterCriticalSection(&(pInner->pub.cs));
 	if (sub < pInner->pub.total)
 		pInner->arr[sub] = data;
 	else if (sub < pInner->capacity)
@@ -179,7 +233,10 @@ CRAPI CRCODE CRDynSet(CRSTRUCTURE dyn, CRUINT8 data, CRUINT32 sub)
 		while (pInner->capacity < sub) pInner->capacity <<= 1;
 		CRUINT8* tmp = _sizeup_cr_(pInner->arr, pInner->pub.total, pInner->capacity);
 		if (!tmp)
+		{
+			LeaveCriticalSection(&(pInner->pub.cs));
 			return CRERR_OUTOFMEM;
+		}
 		tmp[sub++] = data;
 		pInner->arr = tmp;
 		pInner->pub.total = sub;
@@ -187,8 +244,10 @@ CRAPI CRCODE CRDynSet(CRSTRUCTURE dyn, CRUINT8 data, CRUINT32 sub)
 	else
 	{
 		CRThrowError(CRERR_STRUCTURE_FULL, CRDES_STRUCTURE_FULL);
+		LeaveCriticalSection(&(pInner->pub.cs));
 		return CRERR_STRUCTURE_FULL;
 	}
+	LeaveCriticalSection(&(pInner->pub.cs));
 	return 0;
 }
 
@@ -197,15 +256,20 @@ CRAPI CRCODE CRDynPop(CRSTRUCTURE dyn, CRUINT8* data)
 	PCRDYN pInner = dyn;
 	if (!pInner || pInner->pub.type != DYN)
 		return CRERR_INVALID;
+	EnterCriticalSection(&(pInner->pub.cs));
 	if (pInner->pub.total == 0)
+	{
+		LeaveCriticalSection(&(pInner->pub.cs));
 		return CRERR_NOTFOUND;
+	}
 	pInner->pub.total--;
-	*data = pInner->arr[pInner->pub.total];
+	if (data) *data = pInner->arr[pInner->pub.total];
 	if (pInner->pub.total < pInner->capacity >> 1 && pInner->capacity > 32)//可以释放一些空间
 	{
 		pInner->capacity >>= 1;
 		pInner->arr = _sizedown_cr_(pInner->arr, pInner->capacity);
 	}
+	LeaveCriticalSection(&(pInner->pub.cs));
 	return 0;
 }
 
@@ -214,7 +278,9 @@ CRAPI CRCODE CRDynSeek(CRSTRUCTURE dyn, CRUINT8* data, CRUINT32 sub)
 	PCRDYN pInner = dyn;
 	if (pInner && pInner->pub.type == DYN && sub < pInner->pub.total)
 	{
-		*data = pInner->arr[sub];
+		EnterCriticalSection(&(pInner->pub.cs));
+		if (data) *data = pInner->arr[sub];
+		LeaveCriticalSection(&(pInner->pub.cs));
 		return 0;
 	}
 	return CRERR_NOTFOUND;
@@ -228,15 +294,23 @@ CRAPI CRUINT8* CRDynCopy(CRSTRUCTURE dyn, CRUINT32* size)
 		CRThrowError(CRERR_INVALID, NULL);
 		return NULL;
 	}
+	EnterCriticalSection(&(pInner->pub.cs));
 	if (!pInner->pub.total)
 	{
 		CRThrowError(CRERR_NOTFOUND, NULL);
+		LeaveCriticalSection(&(pInner->pub.cs));
 		return NULL;
 	}
 	CRUINT8* out = malloc(pInner->pub.total * sizeof(CRUINT8));
-	IF_FAILED_QUIT(out);
+	if (!out)
+	{
+		CRThrowError(CRERR_OUTOFMEM, NULL);
+		LeaveCriticalSection(&(pInner->pub.cs));
+		return NULL;
+	}
 	memcpy(out, pInner->arr, pInner->pub.total * sizeof(CRUINT8));
 	*size = pInner->pub.total;
+	LeaveCriticalSection(&(pInner->pub.cs));
 	return out;
 }
 
@@ -245,191 +319,75 @@ CRAPI CRUINT8* CRDynCopy(CRSTRUCTURE dyn, CRUINT32* size)
 //键值树的实现
 //
 
-PTREENODE _create_treenode_cr_(CRUINT64 id, CRLVOID data, PTREENODE parent)
+PTREENODE _create_treenode_cr_(CRINT64 key, CRLVOID data, PTREENODE parent)
 {
 	PTREENODE pNode = malloc(sizeof(TREENODE));
 	if (pNode)
 	{
 		pNode->parent = parent;
 		pNode->red = CRTRUE;
-		pNode->id = id;
+		pNode->key = key;
 		pNode->data = data;
 		pNode->left = NULL;
 		pNode->right = NULL;
 	}
 	return pNode;
 }
-
-CRBOOL _left_node_(PTREENODE node)
+//当且仅当node是左节点时返回CRTRUE，其余所有情况返回CRFALSE
+static inline CRBOOL _left_child_(PTREENODE node)
 {
 	if (node && node->parent && node == node->parent->left)
 		return CRTRUE;
 	return CRFALSE;
 }
-
-PTREENODE _brother_(PTREENODE node)
+//当且仅当node存在且颜色为红色时返回CRTRUE
+static inline CRBOOL _color_(PTREENODE node)
 {
-	if (_left_node_(node))
+	return node == NULL ? CRFALSE : node->red;
+}
+//兄弟结点
+static inline PTREENODE _sibling_(PTREENODE node)
+{
+	if (_left_child_(node))
 		return node->parent->right;
 	else if (node->parent)
 		return node->parent->left;
 	return NULL;
 }
-
-void _left_rotate_(PTREENODE node)
+//左旋操作，顺便集成了根结点的判定
+void _left_rotate_(PTREENODE node, PCRTREE tree)
 {
-	if (!node->right)
-		return;
-	PTREENODE top = node, right = node->right, child = node->left;
-	if (_left_node_(node))
+	PTREENODE top = node, right = node->right, child = right->left;
+	if (!node->parent)
+		tree->root = right;
+	else if (_left_child_(node))
 		node->parent->left = right;
-	else if (node->parent)
-		node->parent->right = right;
-	right->parent = node->parent;
+	else node->parent->right = right;
+	right->parent = top->parent;
 	right->left = top;
-	top->right = child;
 	top->parent = right;
+	top->right = child;
 	if (child)
 		child->parent = top;
 }
-
-void _right_rotate_(PTREENODE node)
+//右旋操作，顺便集成了根结点的判定
+void _right_rotate_(PTREENODE node, PCRTREE tree)
 {
-	if (!node->left)
-		return;
 	PTREENODE top = node, left = node->left, child = left->right;
-	if (_left_node_(node))
+	if (!node->parent)
+		tree->root = left;
+	else if (_left_child_(node))
 		node->parent->left = left;
-	else if (node->parent)
-		node->parent->right = left;
+	else node->parent->right = left;
 	left->parent = top->parent;
 	left->right = top;
-	top->left = child;
 	top->parent = left;
+	top->left = child;
 	if (child)
 		child->parent = top;
 }
-
-//吐槽：插入操作比删除操作简单多了
-CRAPI CRCODE CRTreePut(CRSTRUCTURE tree, CRLVOID data, CRUINT64 id)
-{
-	PCRTREE pInner = tree;
-	if (!pInner || pInner->pub.type != TRE)
-		return CRERR_INVALID;
-	if (!pInner->root)
-	{
-		pInner->root = _create_treenode_cr_(id, data, NULL);
-		pInner->root->red = CRFALSE;
-		goto Done;
-	}
-	PTREENODE node = pInner->root;
-	while (1)
-	{
-		if (node->id == id)
-		{
-			node->data = data;
-			return 0;
-		}
-		else if (node->id > id)
-		{
-			if (node->left) node = node->left;
-			else
-			{
-				node->left = _create_treenode_cr_(id, data, node);
-				if (!node->left) return CRERR_OUTOFMEM;
-				node = node->left;
-				break;
-			}
-		}
-		else
-		{
-			if (node->right) node = node->right;
-			else
-			{
-				node->right = _create_treenode_cr_(id, data, node);
-				if (!node->right) return CRERR_OUTOFMEM;
-				node = node->right;
-				break;
-			}
-		}
-	}
-	//插入完毕，开始修正操作
-Fix:
-	if (!node->parent->red)
-		goto Done;
-	PTREENODE brother = _brother_(node->parent);
-	if (brother && brother->red)
-	{
-		node->parent->red = CRFALSE;
-		brother->red = CRFALSE;
-		if (brother->parent == pInner->root)
-			goto Done;
-		brother->parent->red = CRTRUE;
-		node = brother->parent;
-		goto Fix;
-	}
-	if (node->parent->parent == pInner->root)
-		pInner->root = node->parent;
-	node->parent->parent->red = CRTRUE;
-	if (_left_node_(node->parent))
-	{
-		if (_left_node_(node))
-		{
-			node->parent->red = CRFALSE;
-			_right_rotate_(node->parent->parent);
-		}
-		else
-		{
-			node->red = CRFALSE;
-			_left_rotate_(node->parent);
-			_right_rotate_(node->parent);
-		}
-	}
-	else
-	{
-		if (_left_node_(node))
-		{
-			node->parent->red = CRFALSE;
-			_left_rotate_(node->parent->parent);
-		}
-		else
-		{
-			node->red = CRFALSE;
-			_right_rotate_(node->parent);
-			_left_rotate_(node->parent);
-		}
-	}
-Done:
-	pInner->pub.total++;
-	return 0;
-}
-
-CRAPI CRCODE CRTreeSeek(CRSTRUCTURE tree, CRLVOID* data, CRUINT64 id)
-{
-	PCRTREE pInner = tree;
-	if (!pInner || pInner->pub.type != TRE)
-		return CRERR_INVALID;
-	if (!pInner->root)
-		return CRERR_NOTFOUND;
-	PTREENODE node = pInner->root;
-	while (1)
-	{
-		if (node->id == id)
-			*data = node->data;
-		return 0;
-		if (node->id > id && node->left)
-			node = node->left;
-		else if (node->id < id && node->right)
-			node = node->right;
-		else break;
-	}
-	return CRERR_NOTFOUND;
-}
-
-//
-//噩梦——删除红黑树节点
-
-PTREENODE _prior_node_(PTREENODE node)
+//获取前驱结点
+PTREENODE _prev_node_(PTREENODE node)
 {
 	/*
 	* 此处不需要考虑向上寻找结点，因为在删除情况下不会用到这种情况
@@ -439,236 +397,354 @@ PTREENODE _prior_node_(PTREENODE node)
 	while (node->right) node = node->right;
 	return node;
 }
-
-void _fix_after_get_(PCRTREE pInner, PTREENODE node)
+//寻找对应结点，假如能够找到，返回此结点
+PTREENODE _look_up_(PTREENODE root, CRINT64 key, PTREENODE* parent)
 {
-	PTREENODE brother = _brother_(node);
-Fix:
-	if (node->parent->parent)
+	*parent = root;
+Find:
+	if (root->key == key)
+		return root;
+	else if (root->key < key && root->right)
 	{
-		brother->red = CRTRUE;
-		if (node->parent->red)
-			node->parent->red = CRFALSE;
+		root = root->right;
+		*parent = root;
+		goto Find;
+	}
+	else if (root->key > key && root->left)
+	{
+		root = root->left;
+		*parent = root;
+		goto Find;
+	}
+	return NULL;
+}
+
+//吐槽：插入操作比删除操作简单多了
+CRAPI CRCODE CRTreePut(CRSTRUCTURE tree, CRLVOID data, CRINT64 key)
+{
+	PCRTREE pInner = tree;
+	if (!pInner || pInner->pub.type != TRE)
+		return CRERR_INVALID;
+	EnterCriticalSection(&(pInner->pub.cs));
+	if (!pInner->root)
+	{
+		pInner->root = _create_treenode_cr_(key, data, NULL);
+		if (!pInner->root)
+		{
+			LeaveCriticalSection(&(pInner->pub.cs));
+			return CRERR_OUTOFMEM;
+		}
+		pInner->root->red = CRFALSE;
+		goto Done;
+	}
+	PTREENODE node = NULL, parent = NULL, uncle = NULL, grandpa = NULL;
+	if (node = _look_up_(pInner->root, key, &parent))
+	{
+		node->data = data;
+		goto Done;
+	}
+	node = _create_treenode_cr_(key, data, parent);
+	if (!node)
+	{
+		LeaveCriticalSection(&(pInner->pub.cs));
+		return CRERR_OUTOFMEM;
+	}
+	if (key < parent->key)
+		parent->left = node;
+	else parent->right = node;
+Fix:
+	if (node == pInner->root)
+	{
+		node->red = CRFALSE;
+		goto Done;
+	}
+	if (!_color_(node->parent))
+	{
+		goto Done;
+	}
+	parent = node->parent;
+	uncle = _sibling_(parent);
+	grandpa  = parent->parent;
+	if (_color_(uncle))
+	{
+		parent->red = CRFALSE;
+		uncle->red = CRFALSE;
+		grandpa->red = CRTRUE;
+		node = grandpa;
+		goto Fix;
+	}
+	else
+	{
+		if (_left_child_(parent))
+		{
+			if (!_left_child_(node))
+			{
+				_left_rotate_(parent, pInner);
+				parent = node;
+				node = node->left;
+			}
+			parent->red = CRFALSE;
+			grandpa->red = CRTRUE;
+			_right_rotate_(grandpa, pInner);
+		}
 		else
 		{
+			if (_left_child_(node))
+			{
+				_right_rotate_(parent, pInner);
+				parent = node;
+				node = node->right;
+			}
+			parent->red = CRFALSE;
+			grandpa->red = CRTRUE;
+			_left_rotate_(grandpa, pInner);
+		}
+	}
+Done:
+	pInner->pub.total++;
+	LeaveCriticalSection(&(pInner->pub.cs));
+	return 0;
+}
+
+//
+//噩梦——删除红黑树节点
+
+//declaration
+void _case_1_red_sibling_(PCRTREE tree, PTREENODE node);
+void _case_2_far_red_nephew_(PCRTREE tree, PTREENODE node);
+void _case_3_near_red_nephew(PCRTREE tree, PTREENODE node);
+void _case_4_red_parent_(PCRTREE tree, PTREENODE node);
+void _case_5_all_black(PCRTREE tree, PTREENODE node);
+
+/*假如兄弟结点是红色，就转化成父节点是红色的情况，以统一处理
+     p              S   |      p             S
+    / \            / \  |     / \           / \
+   D  red   ==>  red ...|   red  D   ==>  ... red
+  ... /  \       / \    |   /  \ ...          / \
+ .. ...  ...    D  ...  | ...  ... ..       ...  D
+*/
+void _case_1_red_sibling_(PCRTREE tree, PTREENODE node)
+{
+	node->parent->red = CRTRUE;
+	if (_left_child_(node))
+	{
+		node->parent->right->red = CRFALSE;
+		_left_rotate_(node->parent, tree);
+	}
+	else
+	{
+		node->parent->left->red = CRFALSE;
+		_right_rotate_(node->parent, tree);
+	}
+}
+/*兄弟节点是黑色且挂了一个远端红色侄子结点
+     p              p
+    / \            / \
+   D   S          S   D
+  ... / \        / \  ...
+ .. ... red    red ...  ..
+*/
+void _case_2_far_red_nephew_(PCRTREE tree, PTREENODE node)
+{
+	PTREENODE sibling = _sibling_(node);
+	PTREENODE farNephew;
+	sibling->red = node->parent->red;
+	node->parent->red = CRFALSE;
+	if (_left_child_(node))
+	{
+		farNephew = sibling->right;
+		_left_rotate_(node->parent, tree);
+	}
+	else
+	{
+		farNephew = sibling->left;
+		_right_rotate_(node->parent, tree);
+	}
+	farNephew->red = CRFALSE;
+}
+/*兄弟节点设计黑色且只挂了一个近端红色侄子节点
+	 p              p
+    / \            / \
+   D   S          S   D
+  ... / \        / \  ...
+ .. red  ...   ...  red ..
+转化成为情况2来处理
+*/
+void _case_3_near_red_nephew(PCRTREE tree, PTREENODE node)
+{
+	PTREENODE sibling = _sibling_(node);
+	PTREENODE nearNephew;
+	if (_left_child_(node))
+	{
+		nearNephew = sibling->left;
+		_right_rotate_(sibling, tree);
+	}
+	else
+	{
+		nearNephew = sibling->right;
+		_left_rotate_(sibling, tree);
+	}
+	sibling->red = CRTRUE;
+	nearNephew->red = CRFALSE;
+	//转化之后就可以使用情况2来处理了
+	_case_2_far_red_nephew_(tree, node);
+}
+/*父结点为红色而且有兄弟结点
+* 将父节点变为黑色，兄弟节点变红就能平衡
+    red          red
+    / \          / \
+   D   S        S   D
+  / \ / \      / \ / \
+ .........    .........
+*/
+void _case_4_red_parent_(PCRTREE tree, PTREENODE node)
+{
+	PTREENODE sibling = _sibling_(node);
+	node->parent->red = CRFALSE;
+	sibling->red = CRTRUE;
+}
+/*唯一一种需要用到迭代的情况，全黑
+   Black        Black
+    / \          / \
+   D Black    Black D
+  / \ / \      / \ / \
+ .........    .........
+*/
+void _case_5_all_black(PCRTREE tree, PTREENODE node)
+{
+	PTREENODE sibling = _sibling_(node);
+	sibling->red = CRTRUE;
+}
+
+void _fix_single_black_node_(PCRTREE tree, PTREENODE node)
+{
+	PTREENODE sibling;
+Fix:
+	if (node == tree->root)
+	{
+		node->red = CRFALSE;
+		return;
+	}
+	//这种情况下兄弟节点必然存在，否则就不平衡了
+	sibling = _sibling_(node);
+	if (_color_(sibling))
+	{
+		_case_1_red_sibling_(tree, node);
+		goto Fix;
+	}
+	else if (_left_child_(node))
+	{
+		if (_color_(sibling->right))
+			_case_2_far_red_nephew_(tree, node);
+		else if (_color_(sibling->left))
+			_case_3_near_red_nephew(tree, node);
+		else if (_color_(node->parent))
+			_case_4_red_parent_(tree, node);
+		else
+		{
+			_case_5_all_black(tree, node);
 			node = node->parent;
 			goto Fix;
 		}
 	}
 	else
 	{
-		pInner->root = brother;
-		if (_left_node_(node))
-		{
-			if (brother->red)
-			{
-				node->parent->red = CRTRUE;
-				brother->red = CRFALSE;
-				_left_rotate_(node->parent);
-			}
-			else if (brother->right->red)
-			{
-				brother->right->red = CRFALSE;
-				_left_rotate_(node->parent);
-			}
-			else if (brother->left->red)
-			{
-				pInner->root = brother->left;
-				brother->left->red = CRFALSE;
-				_right_rotate_(brother);
-				_left_rotate_(node->parent);
-			}
-			else
-			{
-				pInner->root = node->parent;
-				brother->red = CRTRUE;
-			}
-		}
+		if (_color_(sibling->left))
+			_case_2_far_red_nephew_(tree, node);
+		else if (_color_(sibling->right))
+			_case_3_near_red_nephew(tree, node);
+		else if (_color_(node->parent))
+			_case_4_red_parent_(tree, node);
 		else
 		{
-			if (brother->red)
-			{
-				node->parent->red = CRTRUE;
-				brother->red = CRFALSE;
-				_right_rotate_(node->parent);
-			}
-			else if (brother->left->red)
-			{
-				brother->left->red = CRFALSE;
-				_right_rotate_(node->parent);
-			}
-			else if (brother->right->red)
-			{
-				pInner->root = brother->right;
-				brother->right->red = CRFALSE;
-				_left_rotate_(brother);
-				_right_rotate_(node->parent);
-			}
-			else
-			{
-				pInner->root = node->parent;
-				brother->red = CRTRUE;
-			}
+			_case_5_all_black(tree, node);
+			node = node->parent;
+			goto Fix;
 		}
 	}
 }
 
-void _fix_left_(PCRTREE pInner, PTREENODE node, PTREENODE brother)
+void _fix_parent_(PTREENODE node)
 {
-	if (brother->red)
-	{
-		if (node->parent == pInner->root)
-			pInner->root = brother;
-		brother->red = CRFALSE;
-		node->parent->red = CRTRUE;
-		_left_rotate_(node->parent);
-		brother = node->parent->right;
-	}
-	if (brother->right)
-	{
-		if (node->parent == pInner->root)
-			pInner->root = brother;
-		brother->red = node->parent->red;
-		node->parent->red = CRFALSE;
-		brother->right->red = CRFALSE;
-		_left_rotate_(node->parent);
+	if (_left_child_(node))
 		node->parent->left = NULL;
-		free(node);
-	}
-	else if (brother->left)
-	{
-		if (node->parent == pInner->root)
-			pInner->root = brother->left;
-		node->parent->red = CRFALSE;
-		brother->left->red = node->parent->red;
-		_right_rotate_(brother);
-		_left_rotate_(brother->parent->parent);
-		node->parent->left = NULL;
-		free(node);
-	}
-	else
-	{
-		brother->red = CRTRUE;
-		node->parent->left = NULL;
-		free(node);
-		if (brother->parent->red)
-			brother->parent->red = CRFALSE;
-		else
-			if (brother->parent->parent)
-				_fix_after_get_(pInner, brother->parent);
-	}
+	else if (node->parent)
+		node->parent->right = NULL;
 }
 
-void _fix_right_(PCRTREE pInner, PTREENODE node, PTREENODE brother)
-{
-	if (brother->red)
-	{
-		if (node->parent == pInner->root)
-			pInner->root = brother;
-		brother->red = CRFALSE;
-		node->parent->red = CRTRUE;
-		_right_rotate_(node->parent);
-		brother = node->parent->left;
-	}
-	if (brother->left)
-	{
-		if (node->parent == pInner->root)
-			pInner->root = brother;
-		brother->red = node->parent->red;
-		node->parent->red = CRFALSE;
-		brother->left->red = CRFALSE;
-		_right_rotate_(node->parent);
-		node->parent->right = NULL;
-		free(node);
-	}
-	else if (brother->right)
-	{
-		if (node->parent == pInner->root)
-			pInner->root = brother->right;
-		node->parent->red = CRFALSE;
-		brother->right->red = node->parent->red;
-		_left_rotate_(brother);
-		_right_rotate_(brother->parent->parent);
-		node->parent->right = NULL;
-		free(node);
-	}
-	else
-	{
-		brother->red = CRTRUE;
-		node->parent->right = NULL;
-		free(node);
-		if (brother->parent->red)
-			brother->parent->red = CRFALSE;
-		else
-			if (brother->parent->parent)
-				_fix_after_get_(pInner, brother->parent);
-	}
-}
-
-CRAPI CRCODE CRTreeGet(CRSTRUCTURE tree, CRLVOID* data, CRUINT64 id)
+CRAPI CRCODE CRTreeGet(CRSTRUCTURE tree, CRLVOID* data, CRINT64 key)
 {
 	PCRTREE pInner = tree;
 	if (!pInner || pInner->pub.type != TRE)
 		return CRERR_INVALID;
+	EnterCriticalSection(&(pInner->pub.cs));
 	if (!pInner->root)
-		return CRERR_NOTFOUND;
-	PTREENODE node = pInner->root;
-	while (1)
 	{
-		if (node->id == id)
-			break;
-		else if (node->id > id && node->left)
-			node = node->left;
-		else if (node->id < id && node->right)
-			node = node->right;
-		else
-			return CRERR_NOTFOUND;
+		LeaveCriticalSection(&(pInner->pub.cs));
+		return CRERR_NOTFOUND;
 	}
-	*data = node->data;
-	//开始移除及修正
+	PTREENODE parent;
+	PTREENODE node = _look_up_(pInner->root, key, &parent);
+	if (!node)
+	{
+		LeaveCriticalSection(&(pInner->pub.cs));
+		return CRERR_NOTFOUND;
+	}
+	if (data) *data = node->data;
+Fix:
 	if (node->left && node->right)
 	{
-		PTREENODE prior = _prior_node_(node);
-		COPY_NODE(node, prior);
-		node = prior;
-	}
-Fix:
+		PTREENODE prev = _prev_node_(node);
+		node->data = prev->data;
+		node->key = prev->key;
+		node = prev;
+	}  //假如红黑树的结构是正确的，转换一次就够了
 	if (node->red)
-	{
-		if (_left_node_(node))
-			node->parent->left = NULL;
-		else node->parent->right = NULL;
-		free(node);
 		goto Done;
-	}
-	if (node->left)
+	else if (node->left)
 	{
-		COPY_NODE(node, node->left);
-		free(node->left);
-		node->left = NULL;
+		node->data = node->left->data;
+		node->key = node->left->key;
+		node = node->left;
 	}
 	else if (node->right)
 	{
-		COPY_NODE(node, node->right);
-		free(node->right);
-		node->right = NULL;
+		node->data = node->right->data;
+		node->key = node->right->key;
+		node = node->right;
 	}
-	else  //node已经是叶子节点了
-	{
-		if (node == pInner->root)
-		{
-			pInner->root = NULL;
-			free(node);
-			goto Done;
-		}
-		PTREENODE brother = _brother_(node);
-		if (_left_node_(node))
-			_fix_left_(pInner, node, brother);
-		else
-			_fix_right_(pInner, node, brother);
-	}
+	else
+		_fix_single_black_node_(pInner, node);
 Done:
+	_fix_parent_(node);
+	if (node == pInner->root)
+		pInner->root = NULL;
+	free(node);
 	pInner->pub.total--;
+	LeaveCriticalSection(&(pInner->pub.cs));
+	return 0;
+}
+
+CRAPI CRCODE CRTreeSeek(CRSTRUCTURE tree, CRLVOID* data, CRINT64 key)
+{
+	PCRTREE pInner = tree;
+	if (!pInner || pInner->pub.type != TRE)
+		return CRERR_INVALID;
+	EnterCriticalSection(&(pInner->pub.cs));
+	if (!pInner->root)
+	{
+		LeaveCriticalSection(&(pInner->pub.cs));
+		return CRERR_NOTFOUND;
+	}
+	PTREENODE parent;
+	PTREENODE node = _look_up_(pInner->root, key, &parent);
+	if (!node)
+	{
+		LeaveCriticalSection(&(pInner->pub.cs));
+		return CRERR_NOTFOUND;
+	}
+	if (data) *data = node->data;
+	LeaveCriticalSection(&(pInner->pub.cs));
 	return 0;
 }
 
@@ -684,8 +760,13 @@ CRAPI CRCODE CRLinPut(CRSTRUCTURE lin, CRLVOID data, CRINT64 seek)
 	PCRLINEAR pInner = lin;
 	if (!pInner || pInner->pub.type != LIN)
 		return CRERR_INVALID;
+	EnterCriticalSection(&(pInner->pub.cs));
 	PLINEARNODE ins = malloc(sizeof(LINEARNODE));
-	if (!ins) return CRERR_OUTOFMEM;
+	if (!ins)
+	{
+		LeaveCriticalSection(&(pInner->pub.cs));
+		return CRERR_OUTOFMEM;
+	}
 	ins->data = data;
 	GET_MOD(seek, pInner->pub.total);
 	if (!pInner->hook)
@@ -711,6 +792,7 @@ CRAPI CRCODE CRLinPut(CRSTRUCTURE lin, CRLVOID data, CRINT64 seek)
 		ins->prior->after = ins;
 	}
 	pInner->pub.total++;
+	LeaveCriticalSection(&(pInner->pub.cs));
 	return 0;
 }
 
@@ -719,15 +801,20 @@ CRAPI CRCODE CRLinSeek(CRSTRUCTURE lin, CRLVOID* data, CRINT64 seek)
 	PCRLINEAR pInner = lin;
 	if (!pInner || pInner->pub.type != LIN)
 		return CRERR_INVALID;
+	EnterCriticalSection(&(pInner->pub.cs));
 	if (!pInner->hook)
+	{
+		LeaveCriticalSection(&(pInner->pub.cs));
 		return CRERR_NOTFOUND;
+	}
 	PLINEARNODE node = pInner->hook;
 	GET_MOD(seek, pInner->pub.total);
 	if (seek < 0)
 		while (seek < 0) { seek++; node = node->prior; }
 	else
 		while (seek > 0) { seek--; node = node->after; }
-	*data = node->data;
+	if (data) *data = node->data;
+	LeaveCriticalSection(&(pInner->pub.cs));
 	return 0;
 }
 
@@ -736,15 +823,19 @@ CRAPI CRCODE CRLinGet(CRSTRUCTURE lin, CRLVOID* data, CRINT64 seek)
 	PCRLINEAR pInner = lin;
 	if (!pInner || pInner->pub.type != LIN)
 		return CRERR_INVALID;
+	EnterCriticalSection(&(pInner->pub.cs));
 	if (!pInner->hook)
+	{
+		LeaveCriticalSection(&(pInner->pub.cs));
 		return CRERR_NOTFOUND;
+	}
 	PLINEARNODE node = pInner->hook;
 	GET_MOD(seek, pInner->pub.total);
 	if (seek < 0)
 		while (seek < 0) { seek++; node = node->prior; }
 	else
 		while (seek > 0) { seek--; node = node->after; }
-	*data = node->data;
+	if (data) *data = node->data;
 	if (pInner->pub.total == 1)
 	{
 		free(pInner->hook);
@@ -759,6 +850,7 @@ CRAPI CRCODE CRLinGet(CRSTRUCTURE lin, CRLVOID* data, CRINT64 seek)
 		free(node);
 	}
 	pInner->pub.total--;
+	LeaveCriticalSection(&(pInner->pub.cs));
 	return 0;
 }
 
@@ -794,14 +886,17 @@ void _clear_linear_(CRSTRUCTURE s, DSCallback cal)
 	PCRLINEAR lin = s;
 	if (!lin->hook)
 		return;
-	PLINEARNODE node = NULL;
-	for (int i = 0; i < lin->pub.total; i++)
+	PLINEARNODE node = lin->hook, p = node;
+	node->prior->after = NULL;
+	while (node->after)
 	{
-		cal(lin->hook->data);
-		node = lin->hook;
-		lin->hook = lin->hook->after;
-		free(node);
+		p = node;
+		node = node->after;
+		cal(node->data);
+		free(p);
 	}
+	cal(node->data);
+	free(node);
 }
 
 //使用一下数据思想
@@ -819,6 +914,10 @@ CRAPI CRCODE CRFreeStructure(CRSTRUCTURE s, DSCallback cal)
 	CRSTRUCTUREPUB* pub = s;
 	if (!pub)
 		return CRERR_INVALID;
+	//如此操作只是为了确保最后一个操作完成，假如后面还有操作，造成的错误概不负责
+	EnterCriticalSection(&(pub->cs));
+	LeaveCriticalSection(&(pub->cs));
+	DeleteCriticalSection(&(pub->cs));
 	if (!cal)
 		cal = _struc_do_nothing_;
 	if (pub->type < 0 || pub->type > 3)
@@ -826,4 +925,10 @@ CRAPI CRCODE CRFreeStructure(CRSTRUCTURE s, DSCallback cal)
 	clearFuncs[pub->type](s, cal);
 	free(s);
 	return 0;
+}
+
+CRAPI CRUINT32 CRStructureSize(CRSTRUCTURE s)
+{
+	if (s)
+		return ((CRSTRUCTUREPUB*)s)->total;
 }

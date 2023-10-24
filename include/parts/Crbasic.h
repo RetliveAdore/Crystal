@@ -5,9 +5,13 @@
 
 typedef CRLVOID CRTIMER;
 typedef CRLVOID CRTHREAD;
+typedef CRLVOID CRLOCK;
+
+typedef void (*CRThreadFunction)(CRLVOID userdata, CRTHREAD idThis);
 
 //初始化之后才能正常使用全部功能
 CRAPI CRCODE CRBasicInit();
+CRAPI void CRBasicUninit();
 
 //
 
@@ -29,8 +33,19 @@ CRAPI CRCODE CRTimerClose(CRTIMER timer);
 //
 
 /*
-* 和多线程相关的函数，包含创建、分离、等待线程，线程锁之类
+* 和多线程相关的函数，包含创建、等待线程，线程锁之类
 */
+
+CRAPI CRTHREAD CRThread(CRThreadFunction func, CRLVOID userData);
+CRAPI CRCODE CRWaitThread(CRTHREAD thread);
+
+CRAPI CRLOCK CRLockCreate();
+CRAPI void CRLockRelease(CRLOCK lock);
+
+//是否遵守规则全凭自愿，遇到乱搞以下函数概不负责
+
+CRAPI void CRLock(CRLOCK lock);  //会阻塞直到加锁成功
+CRAPI void CRUnlock(CRLOCK lock);  //无论锁的状态，立刻解锁
 
 #ifdef __cplusplus
 }

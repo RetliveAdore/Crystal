@@ -2,6 +2,20 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#ifdef CR_WINDOWS
+#include <Windows.h>
+CRITICAL_SECTION cs;
+
+#elif defined CR_LINUX
+#include <pthread.h>
+//直接使出那一招，简单方便又快捷
+extern void InitializeCriticalSection(pthread_mutex_t* mt);
+extern void DeleteCriticalSection(pthread_mutex_t* mt);
+extern void EnterCriticalSection(pthread_mutex_t* mt);
+extern void LeaveCriticalSection(pthread_mutex_t* mt);
+pthread_mutex_t cs;
+#endif
+
 CRSTRUCTURE bin = NULL;
 static CRSTRUCTURE errTree = NULL;
 
@@ -42,6 +56,7 @@ static void _on_close_(void)
 	CRFreeStructure(bin, _clear_callback_);
 	bin = NULL;
 	_cr_uninit_();
+	DeleteCriticalSection(&cs);
 }
 
 CRAPI CRCODE CRInit()
@@ -57,9 +72,11 @@ CRAPI CRCODE CRInit()
 	if (!errTree)
 	{
 		CRFreeStructure(bin, NULL);
+		bin = NULL;
 		errNow = errs[CRERR_OUTOFMEM];
 		return -1;
 	}
+	InitializeCriticalSection(&cs);
 	atexit(_on_close_);
 	return 0;
 }
@@ -83,20 +100,24 @@ CRAPI CRCODE CRAddtoTrashBin(TrashBinFunc WipeYourAss)
 
 CRAPI CRBOOL CRThrowError(CRCODE errcode, const char* description)
 {
+	EnterCriticalSection(&cs);
 	if (!errTree)
 	{
 		errNow = errs[CRERR_UNINITED];
+		LeaveCriticalSection(&cs);
 		return CRFALSE;
 	}
 	if (errcode > 0 && errcode <= 1000 && errcode < CRERR_MAXCODE)
 		errNow = errs[errcode];
 	else
 		CRTreePut(errTree, (void*)description, (CRUINT64)errcode);
+	LeaveCriticalSection(&cs);
 	return CRTRUE;
 }
 
 CRAPI const char* CRGetError(CRCODE errcode)
 {
+	EnterCriticalSection(&cs);
 	if (!errNow)
 		errNow = errs[0];
 	const char* back = errs[0];
@@ -115,5 +136,6 @@ CRAPI const char* CRGetError(CRCODE errcode)
 		if (CRTreeGet(errTree, (void*)&back, (CRUINT64)errcode))
 			back = errs[0];
 	}
+	LeaveCriticalSection(&cs);
 	return back;
 }

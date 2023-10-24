@@ -27,6 +27,7 @@ CRAPI CRSTRUCTURE CRLinear();
 CRAPI CRSTRUCTURE CRLoop();
 
 CRAPI CRCODE CRFreeStructure(CRSTRUCTURE s, DSCallback cal);
+CRAPI CRUINT32 CRStructureSize(CRSTRUCTURE s);
 
 //
 
@@ -50,9 +51,9 @@ CRAPI CRUINT8* CRDynCopy(CRSTRUCTURE dyn, CRUINT32* size);
 * 当使用Get并成功之后，此元素将从树中移除
 */
 
-CRAPI CRCODE CRTreePut(CRSTRUCTURE tree, CRLVOID data, CRUINT64 id);
-CRAPI CRCODE CRTreeSeek(CRSTRUCTURE tree, CRLVOID* data, CRUINT64 id);
-CRAPI CRCODE CRTreeGet(CRSTRUCTURE tree, CRLVOID* data, CRUINT64 id);
+CRAPI CRCODE CRTreePut(CRSTRUCTURE tree, CRLVOID data, CRINT64 key);
+CRAPI CRCODE CRTreeSeek(CRSTRUCTURE tree, CRLVOID* data, CRINT64 key);
+CRAPI CRCODE CRTreeGet(CRSTRUCTURE tree, CRLVOID* data, CRINT64 key);
 
 //
 
@@ -64,5 +65,12 @@ CRAPI CRCODE CRTreeGet(CRSTRUCTURE tree, CRLVOID* data, CRUINT64 id);
 CRAPI CRCODE CRLinPut(CRSTRUCTURE lin, CRLVOID data, CRINT64 seek);
 CRAPI CRCODE CRLinSeek(CRSTRUCTURE lin, CRLVOID* data, CRINT64 seek);
 CRAPI CRCODE CRLinGet(CRSTRUCTURE lin, CRLVOID* data, CRINT64 seek);
+
+/*
+* 这些都是对上述线性表功能的再封装
+*/
+
+#define CRQueuePush(lin, data) CRLinPut((lin), (data), -1)
+#define CRQueuePop(lin, data) CRLinGet((lin), (data), -1)
 
 #endif
