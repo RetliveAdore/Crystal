@@ -1,7 +1,7 @@
 ﻿#include <Crystal.h>
 #include <parts/Crbasic.h>
 #include <malloc.h>
-#include <stdio.h>
+
 extern CRUINT64 CurrentID;
 extern CRSTRUCTURE threadTree;
 extern CRSTRUCTURE availableIDs;
