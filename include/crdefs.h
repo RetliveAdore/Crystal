@@ -3,6 +3,7 @@
 
 #ifdef WIN32
 #  define CR_WINDOWS
+#  define CRLD __declspec(dllimport)
 #  ifdef CR_SHARED_LIB
 #    ifdef CR_BUILD_DLL
 #      define CRAPI __declspec(dllexport)
@@ -16,6 +17,7 @@
 #elif __linux__
 #  define CR_LINUX
 #  define CRAPI extern
+#  define CRLD  extern
 
 #else
 #  error unsupported platform.

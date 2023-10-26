@@ -15,5 +15,6 @@ CRBOOL ProcessCommand(int argc, char** argv);
 //demos
 
 int Demo1(int argc, char** argv);
+int Demo2(int argc, char** argv);
 
 #endif //include

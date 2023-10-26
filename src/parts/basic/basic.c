@@ -1,6 +1,6 @@
 ﻿#include <Crystal.h>
 #include <parts/Crbasic.h>
-#include <stdio.h>
+
 CRLVOID CurrentID = (CRLVOID)1;
 CRSTRUCTURE threadTree = NULL;
 CRSTRUCTURE availableIDs = NULL;
@@ -15,30 +15,6 @@ LARGE_INTEGER count = { 0 };
 #endif
 
 CRBOOL crInitedBasic = CRFALSE;
-
-const char* errsBasic[] =
-{
-	"Fine\0",
-	"please init Crbasic first\0",
-	"run out of memory\0",
-	"invalid item\0"
-};
-const char* errNowBasic = NULL;
-
-CRAPI const char* CRErrorBasic(CRCODE errcode)
-{
-	if (!errNowBasic)
-		errNowBasic = errsBasic[0];
-	const char* ret = errNowBasic;
-	if (errcode && errcode < sizeof(errsBasic) / sizeof(const char*))
-		ret = errsBasic[errcode];
-	else if (!errcode)
-		ret = errNowBasic;
-	else
-		ret = "invalid errcode!";
-	errNowBasic = errsBasic[0];
-	return ret;
-}
 
 CRAPI CRCODE CRBasicInit()
 {

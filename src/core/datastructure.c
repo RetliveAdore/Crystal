@@ -182,6 +182,24 @@ CRUINT8* _sizedown_cr_(CRUINT8* arr, CRUINT32 capacity)
 	return realloc(arr, capacity);
 }
 
+/*
+这个函数不是给用户用的，是给动态数组扩展库用的。
+所以说没有写到头文件里面
+因为内存管理是：谁申请谁释放，在扩展库里面释放内存会出问题
+*/
+CRAPI CRCODE CRDynSizeUp(CRSTRUCTURE dyn, CRUINT32 size, CRUINT32 capacity)
+{
+	PCRDYN pInner = dyn;
+	if (!pInner || pInner->pub.type != DYN)
+		return CRERR_INVALID;
+	CRUINT8* tmp = calloc(capacity, sizeof(CRUINT8));
+	if (!tmp) return CRERR_OUTOFMEM;
+	memcpy(tmp, pInner->arr, size);
+	free(pInner->arr);
+	pInner->arr = tmp;
+	return 0;
+}
+
 CRAPI CRCODE CRDynPush(CRSTRUCTURE dyn, CRUINT8 data)
 {
 	PCRDYN pInner = dyn;
@@ -228,9 +246,9 @@ CRAPI CRCODE CRDynSet(CRSTRUCTURE dyn, CRUINT8 data, CRUINT32 sub)
 		pInner->arr[sub] = data;
 		pInner->pub.total = sub + 1;
 	}
-	else if (sub < DYN_MAX)
+	else if (sub + 1 < DYN_MAX)
 	{
-		while (pInner->capacity < sub) pInner->capacity <<= 1;
+		while (pInner->capacity < sub + 1) pInner->capacity <<= 1;
 		CRUINT8* tmp = _sizeup_cr_(pInner->arr, pInner->pub.total, pInner->capacity);
 		if (!tmp)
 		{
@@ -312,6 +330,11 @@ CRAPI CRUINT8* CRDynCopy(CRSTRUCTURE dyn, CRUINT32* size)
 	*size = pInner->pub.total;
 	LeaveCriticalSection(&(pInner->pub.cs));
 	return out;
+}
+
+CRAPI void CRDynFreeCopy(CRUINT8* data)
+{
+	free(data);
 }
 
 //
@@ -931,4 +954,5 @@ CRAPI CRUINT32 CRStructureSize(CRSTRUCTURE s)
 {
 	if (s)
 		return ((CRSTRUCTUREPUB*)s)->total;
+	return 0;
 }

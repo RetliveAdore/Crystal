@@ -47,6 +47,14 @@ CRAPI void CRLockRelease(CRLOCK lock);
 CRAPI void CRLock(CRLOCK lock);  //会阻塞直到加锁成功
 CRAPI void CRUnlock(CRLOCK lock);  //无论锁的状态，立刻解锁
 
+//
+
+/*
+* 和文件操作相关的函数，将其映射到内存，封包解包等
+* 文件映射到内存之后使用动态数组的接口来操作，
+* 操作部分的实现将会在Cryatal数据结构核心之中
+*/
+
 #ifdef __cplusplus
 }
 #endif
