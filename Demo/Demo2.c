@@ -3,13 +3,12 @@
 #include <parts/CrDynExtra.h>
 #include <stdio.h>
 #include <math.h>
-char* str1 = "123456";
-char* str2 = "123455";
-char* str3 = "asdhjgahgoliyfuebuhaogsxutfawEIYFASCIPGEYZHXBb;khigf";
-char* str4 = "c";
+
+char* str1 = "asdhjgahgoliyfuebuhaogsxutfawEIYFASCIPGEYZHXBb;khigf";
+char* str2 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa123123131231231ljhscfoahwbdocuyzslcgfblaiouerwyllllll";
 
 //展示十六进制数的奥秘所在
-char hexChar[] =
+char hexChar[16] =
 {
 	'0', '1', '2', '3',
 	'4', '5', '6', '7',
@@ -38,13 +37,11 @@ void CalculateHash(char* str)
 		return;
 	}
 
-	for (index = 0; index < strlen(str); index++)
-		CRDynSet(dyn, str[index], index);
-	CRDynSet(dyn, '\0', index);
+	CRDynSetup(dyn, str, strlen(str) + 1);
 	hash = CRHash64(dyn);
-	printf("内容：%s\n哈希值：", str);
+	printf("内容：%s\n信息熵：%.5f\n哈希值：", str, CREntropy(dyn));
 	DisplayHex(hash);
-	printf("信息熵：%.5f\n\n", CREntropy(dyn));
+	printf("\n");
 	CRFreeStructure(dyn, NULL);
 }
 
@@ -52,12 +49,41 @@ void HashDemo()
 {
 	CalculateHash(str1);
 	CalculateHash(str2);
-	CalculateHash(str3);
-	CalculateHash(str4);
+}
+
+void CompressTest()
+{
+	CRSTRUCTURE srcDyn = CRDynamic();
+	CRSTRUCTURE compressed = CRDynamic();
+	CRSTRUCTURE decompressed = CRDynamic();
+
+	//这里strlen加一是因为还需要把结尾的'\0'包含进去
+	CRDynSetup(srcDyn, str2, strlen(str2) + 1);
+	
+	CRCompress(srcDyn, compressed);
+	CRDecompress(compressed, decompressed);
+
+	CRUINT8* src = CRDynCopy(srcDyn, NULL);
+	printf("压缩前：%s\n信息熵：%.5f\n", src, CREntropy(srcDyn));
+
+	CRUINT8* comp = CRDynCopy(compressed, NULL);
+	printf("压缩后：%s\n信息熵：%.5f\n", comp, CREntropy(compressed));
+
+	CRUINT8* copy = CRDynCopy(decompressed, NULL);
+	printf("解压后：%s\n信息熵：%.5f\n", copy, CREntropy(decompressed));
+
+	CRDynFreeCopy(src);
+	CRDynFreeCopy(comp);
+	CRDynFreeCopy(copy);
+
+	CRFreeStructure(srcDyn, NULL);
+	CRFreeStructure(compressed, NULL);
+	CRFreeStructure(decompressed, NULL);
 }
 
 int Demo2(int argc, char** argv)
 {
 	HashDemo();
+	CompressTest();
 	return 0;
 }

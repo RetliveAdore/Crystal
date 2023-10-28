@@ -36,9 +36,9 @@ offset->|<--len-->|
 }
 */
 
+//最长操作64位比特
+
 CRAPI CRUINT64 CRDynGetBits(CRSTRUCTURE dyn, CRUINT64 offset, CRUINT8 len);
 CRAPI CRCODE CRDynSetBits(CRSTRUCTURE dyn, CRUINT64 offset, CRUINT8 len, CRUINT64 bits);
 
-//使用已有的数据立即初始化动态数组
-CRAPI CRCODE CRDynSetup(CRSTRUCTURE dyn, CRUINT8 buffer, CRUINT32 size);
 #endif  //include

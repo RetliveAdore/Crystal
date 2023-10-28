@@ -44,6 +44,10 @@ CRAPI CRCODE CRDynSeek(CRSTRUCTURE dyn, CRUINT8* data, CRUINT32 sub);
 CRAPI CRUINT8* CRDynCopy(CRSTRUCTURE dyn, CRUINT32* size);
 CRAPI void CRDynFreeCopy(CRUINT8* data);
 
+//使用已有的数据立即初始化动态数组
+//假如buffer是NULL，就清空数组并重新初始化
+CRAPI CRCODE CRDynSetup(CRSTRUCTURE dyn, CRUINT8* buffer, CRUINT32 size);
+
 //
 
 /*

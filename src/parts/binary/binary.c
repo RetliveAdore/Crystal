@@ -1,8 +1,11 @@
 ﻿#include <Crystal.h>
 #include <parts/Crbinary.h>
 #include <parts/CrDynExtra.h>
+#include <crerrors.h>
 #include <malloc.h>
 #include <math.h>
+
+CRLD CRUINT8* CRDynArr(CRSTRUCTURE dyn, CRUINT32* size);
 
 // （三元组）总共26比特
 // +-----------+-------------------------+--------------+-----------------+
@@ -88,23 +91,135 @@ CRAPI double CREntropy(CRSTRUCTURE dyn)
 * 下方位数据压缩解压实现（LZ77）
 */
 
-CRUINT8 _compare_win_()
+//功能函数，在滑动窗口寻找最长匹配串，并返回长度
+//传入token用以返回匹配串的偏移量
+CRUINT8 _compare_win_(
+	const CRUINT8* winBegin, const CRUINT8* winEnd,
+	const CRUINT8* bufBegin, const CRUINT8* bufEnd,
+	CRUINT16* token
+)
 {
-
+	if (winBegin > winEnd || bufBegin > bufEnd)
+		return 0;
+	CRUINT16 tokenTmp = winEnd - winBegin;
+	CRUINT8 longest = 0, length = 0;
+	const CRUINT8* pTmpSource = winBegin;
+	const CRUINT8* pTmpBuffer = bufBegin;
+	while (winBegin <= winEnd)
+	{
+		while (pTmpBuffer <= bufEnd && pTmpSource <= winEnd)
+		{
+			if (*pTmpBuffer != *pTmpSource)
+				break;
+			length++;
+			pTmpSource++;
+			pTmpBuffer++;
+		}
+		//准备下一轮
+		winBegin++;
+		pTmpSource = winBegin;
+		pTmpBuffer = bufBegin;
+		if (length > longest)
+		{
+			longest = length;
+			*token = tokenTmp + 1;
+		}
+		tokenTmp--;
+		length = 0;
+	}
+	return longest;
 }
 
-CRAPI CRCODE CRCompress(CRSTRUCTURE dynIn, CRSTRUCTURE* dynOut)
+CRAPI CRCODE CRCompress(CRSTRUCTURE dynIn, CRSTRUCTURE dynOut)
 {
-	if (!dynOut)
+	if (!dynIn || !dynOut)
 		return CRERR_INVALID;
+	CRUINT32 size = 0;
+	CRUINT8* buffer = CRDynArr(dynIn, &size);
+	CRUINT8* begin = buffer;  //数据头
+	CRUINT8* end = buffer + size - 1;  //数据尾
+	CRUINT8* windowPos = begin;  //滑动窗口的位置
+	CRUINT64 offset = 0;  //比特位偏移位置
 
+	CRUINT16 token = 0;
+	CRUINT8 length = 0;
+	//压缩的第一个字符必然是直接编码的
+	CRDynSetBits(dynOut, offset, LZ77_TYPE_BIT_SIZE, 0);
+	offset += LZ77_TYPE_BIT_SIZE;
+	CRDynSetBits(dynOut, offset, LZ77_NEXT_BIT_SIZE, *windowPos);
+	offset += LZ77_NEXT_BIT_SIZE;
+	//开始循环
+	while (windowPos < end)
+	{
+		length = _compare_win_(
+			(windowPos - begin) > LZ77_WINDOW_SIZE ? windowPos - LZ77_WINDOW_SIZE : begin,
+			windowPos,
+			windowPos + 1,
+			(end - windowPos) > LZ77_BUFFER_SIZE ? windowPos + LZ77_BUFFER_SIZE : end,
+			&token
+		);
+		windowPos++;
+		if (length > 1)  //三元组
+		{
+			windowPos += length;
+			CRDynSetBits(dynOut, offset, LZ77_TYPE_BIT_SIZE, 1);
+			offset += LZ77_TYPE_BIT_SIZE;
+			CRDynSetBits(dynOut, offset, LZ77_OFFSET_BIT_SIZE, token);
+			offset += LZ77_OFFSET_BIT_SIZE;
+			CRDynSetBits(dynOut, offset, LZ77_LENGTH_BIT_SIZE, length);
+			offset += LZ77_LENGTH_BIT_SIZE;
+			if (windowPos <= end)
+				CRDynSetBits(dynOut, offset, LZ77_NEXT_BIT_SIZE, *windowPos);
+			else
+				CRDynSetBits(dynOut, offset, LZ77_NEXT_BIT_SIZE, 0);
+			offset += LZ77_NEXT_BIT_SIZE;
+		}
+		else
+		{
+			CRDynSetBits(dynOut, offset, LZ77_TYPE_BIT_SIZE, 0);
+			offset += LZ77_TYPE_BIT_SIZE;
+			CRDynSetBits(dynOut, offset, LZ77_NEXT_BIT_SIZE, *windowPos);
+			offset += LZ77_NEXT_BIT_SIZE;
+		}
+	}
 	return 0;
 }
 
-CRAPI CRCODE CRDecompress(CRSTRUCTURE dynIn, CRSTRUCTURE* dynOut)
+CRAPI CRCODE CRDecompress(CRSTRUCTURE dynIn, CRSTRUCTURE dynOut)
 {
-	if (!dynOut)
+	if (!dynIn || !dynOut)
 		return CRERR_INVALID;
-
+	CRUINT32 size = CRStructureSize(dynIn);
+	CRUINT64 offset = 0;
+	CRUINT8 bufferToken = 0;
+	CRUINT16 length = 0, token = 0;
+	CRUINT64 windowPos = 0;
+	CRUINT8 byte = 0;
+	while (offset >> 3 < size - 1)
+	{
+		if (CRDynGetBits(dynIn, offset, LZ77_TYPE_BIT_SIZE))  //坏了，遇到三元组了
+		{
+			offset += LZ77_TYPE_BIT_SIZE;
+			token = CRDynGetBits(dynIn, offset, LZ77_OFFSET_BIT_SIZE);
+			offset += LZ77_OFFSET_BIT_SIZE;
+			length = CRDynGetBits(dynIn, offset, LZ77_LENGTH_BIT_SIZE);
+			offset += LZ77_LENGTH_BIT_SIZE;
+			windowPos = CRStructureSize(dynOut) - token;
+			while (length)
+			{
+				CRDynSeek(dynOut, &byte, windowPos);
+				CRDynPush(dynOut, byte);
+				length--;
+				windowPos++;
+			}
+			CRDynPush(dynOut, CRDynGetBits(dynIn, offset, LZ77_NEXT_BIT_SIZE));
+		}
+		else
+		{
+			offset += LZ77_TYPE_BIT_SIZE;
+			CRDynPush(dynOut, CRDynGetBits(dynIn, offset, LZ77_NEXT_BIT_SIZE));
+		}
+		offset += LZ77_NEXT_BIT_SIZE;
+	}
 	return 0;
 }

@@ -12,4 +12,8 @@
 #define CRERR_STRUCTURE_FULL 1002
 #define CRDES_STRUCTURE_FULL "failed to extend dynamic array's space, size limited to 512MB"
 
+#define CRERR_BINARY_DYN_CREATE 1003
+
+#define CRDES_BINARY_DYN_CREATE "failed to create a dynamic array"
+
 #endif  //include

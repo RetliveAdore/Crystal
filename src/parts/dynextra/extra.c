@@ -17,6 +17,7 @@
 #endif
 
 CRLD CRCODE CRDynSizeUp(CRSTRUCTURE dyn, CRUINT32 size, CRUINT32 capacity);
+CRLD CRCODE CRDynSizeDown(CRSTRUCTURE dyn, CRUINT32 capacity);
 
 #ifdef CR_LINUX  //直接使出那一招，简单方便又快捷
 void InitializeCriticalSection(pthread_mutex_t* mt)
@@ -77,11 +78,13 @@ CRAPI CRUINT64 CRDynGetBits(CRSTRUCTURE dyn, CRUINT64 offset, CRUINT8 len)
 		CRThrowError(CRERR_INVALID, NULL);
 		return 0;
 	}
+	EnterCriticalSection(&(pInner->pub.cs));
 	CRUINT64 endpos = (offset + len) >> 3;
 	endpos += (offset + len) % 8 > 0 ? 1 : 0;
 	if (endpos >= pInner->pub.total)
 	{
 		CRThrowError(CRERR_NOTFOUND, NULL);
+		LeaveCriticalSection(&(pInner->pub.cs));
 		return 0;
 	}
 	CRUINT64 back = 0;
@@ -99,9 +102,10 @@ CRAPI CRUINT64 CRDynGetBits(CRSTRUCTURE dyn, CRUINT64 offset, CRUINT8 len)
 			buffer++;
 		}
 	}
+	LeaveCriticalSection(&(pInner->pub.cs));
 	return back;
 }
-#include <stdio.h>
+
 CRAPI CRCODE CRDynSetBits(CRSTRUCTURE dyn, CRUINT64 offset, CRUINT8 len, CRUINT64 bits)
 {
 	if (len > 63)  //从0开始
@@ -116,12 +120,16 @@ CRAPI CRCODE CRDynSetBits(CRSTRUCTURE dyn, CRUINT64 offset, CRUINT8 len, CRUINT6
 		CRThrowError(CRERR_STRUCTURE_FULL, CRDES_STRUCTURE_FULL);
 		return CRERR_STRUCTURE_FULL;
 	}
+	EnterCriticalSection(&(pInner->pub.cs));
 	if (endpos >= pInner->capacity && endpos < DYN_MAX)
 	{
 		while (pInner->capacity <= endpos) pInner->capacity <<= 1;
 		CRCODE code = CRDynSizeUp(dyn, pInner->pub.total, pInner->capacity);
 		if (code)
+		{
+			LeaveCriticalSection(&(pInner->pub.cs));
 			return code;
+		}
 		pInner->pub.total = endpos + 1;
 	}
 	else if (endpos >= pInner->pub.total)
@@ -140,5 +148,6 @@ CRAPI CRCODE CRDynSetBits(CRSTRUCTURE dyn, CRUINT64 offset, CRUINT8 len, CRUINT6
 			buffer++;
 		}
 	}
+	LeaveCriticalSection(&(pInner->pub.cs));
 	return 0;
 }

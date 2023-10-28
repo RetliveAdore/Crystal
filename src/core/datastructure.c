@@ -123,6 +123,7 @@ CRAPI CRSTRUCTURE CRDynamic()
 	pInner->pub.type = DYN;
 	pInner->pub.total = 0;
 	InitializeCriticalSection(&(pInner->pub.cs));
+	pInner->arr[0] = 0;
 	pInner->capacity = 1;
 	return pInner;
 }
@@ -182,11 +183,15 @@ CRUINT8* _sizedown_cr_(CRUINT8* arr, CRUINT32 capacity)
 	return realloc(arr, capacity);
 }
 
+//
+
 /*
-这个函数不是给用户用的，是给动态数组扩展库用的。
+* private API
+这几个函数不是给用户用的，是给内部人员用的。
 所以说没有写到头文件里面
 因为内存管理是：谁申请谁释放，在扩展库里面释放内存会出问题
 */
+
 CRAPI CRCODE CRDynSizeUp(CRSTRUCTURE dyn, CRUINT32 size, CRUINT32 capacity)
 {
 	PCRDYN pInner = dyn;
@@ -198,6 +203,26 @@ CRAPI CRCODE CRDynSizeUp(CRSTRUCTURE dyn, CRUINT32 size, CRUINT32 capacity)
 	free(pInner->arr);
 	pInner->arr = tmp;
 	return 0;
+}
+CRAPI CRCODE CRDynSizeDown(CRSTRUCTURE dyn, CRUINT32 capacity)
+{
+	PCRDYN pInner = dyn;
+	if (!pInner || pInner->pub.type != DYN)
+		return CRERR_INVALID;
+	if (!realloc(pInner->arr, capacity))
+		return CRERR_OUTOFMEM;
+	return 0;
+}
+CRAPI CRUINT8* CRDynArr(CRSTRUCTURE dyn, CRUINT32* size)
+{
+	PCRDYN pInner = dyn;
+	if (!pInner || pInner->pub.type != DYN)
+	{
+		if (size) *size = 0;
+		return NULL;
+	}
+	if (size) *size = pInner->pub.total;
+	return pInner->arr;
 }
 
 CRAPI CRCODE CRDynPush(CRSTRUCTURE dyn, CRUINT8 data)
@@ -327,7 +352,7 @@ CRAPI CRUINT8* CRDynCopy(CRSTRUCTURE dyn, CRUINT32* size)
 		return NULL;
 	}
 	memcpy(out, pInner->arr, pInner->pub.total * sizeof(CRUINT8));
-	*size = pInner->pub.total;
+	if (size) *size = pInner->pub.total;
 	LeaveCriticalSection(&(pInner->pub.cs));
 	return out;
 }
@@ -335,6 +360,46 @@ CRAPI CRUINT8* CRDynCopy(CRSTRUCTURE dyn, CRUINT32* size)
 CRAPI void CRDynFreeCopy(CRUINT8* data)
 {
 	free(data);
+}
+
+CRAPI CRCODE CRDynSetup(CRSTRUCTURE dyn, CRUINT8* buffer, CRUINT32 size)
+{
+	PCRDYN pInner = dyn;
+	if (!pInner || pInner->pub.type != DYN)
+		return CRERR_INVALID;
+	if (size > DYN_MAX)
+	{
+		CRThrowError(CRERR_STRUCTURE_FULL, CRDES_STRUCTURE_FULL);
+		return CRERR_STRUCTURE_FULL;
+	}
+	EnterCriticalSection(&(pInner->pub.cs));
+	if (!buffer)
+	{
+		CRUINT8* tmp = calloc(pInner->capacity, sizeof(CRUINT8));
+		if (!tmp)
+		{
+			LeaveCriticalSection(&(pInner->pub.cs));
+			return CRERR_OUTOFMEM;
+		}
+		pInner->arr = tmp;
+		pInner->pub.total = 0;
+		pInner->capacity = 1;
+		goto Done;
+	}
+	pInner->capacity = 1;
+	while (pInner->capacity < size) pInner->capacity <<= 1;
+	CRUINT8* tmp = calloc(pInner->capacity, sizeof(CRUINT8));
+	if (!tmp)
+	{
+		LeaveCriticalSection(&(pInner->pub.cs));
+		return CRERR_OUTOFMEM;
+	}
+	memcpy(tmp, buffer, size);
+	pInner->arr = tmp;
+	pInner->pub.total = size;
+Done:
+	LeaveCriticalSection(&(pInner->pub.cs));
+	return 0;
 }
 
 //
