@@ -43,7 +43,12 @@ static void _on_close_(void)
 &emsp;内部函数实际上不会暴露在用户环境中，但是为了在编写源代码时易于区分，使用自己的命名方式规范
 ## 使用
 &emsp;将Crystal包含进你的项目，你可以决定使用静态库或者动态库，也可以添加自己的第三方模块。官方Release（如果有的话）不会提供静态库版本，想要使用需要自行编译，在使用介绍完毕之后将会讲述编译方法和环境。  
-&emsp;作者的建议是使用cmake构建项目，也将介绍如何在cmake中使用Crystal。首先：
-~~~cmake
-#...
+&emsp;作者的建议是使用cmake构建项目，也将介绍如何在Linux-Cmake中使用Crystal。首先：
+~~~shell
+#进入Crystal的项目根目录，然后执行：
+bash Autobuild.sh
+
+#之后在。/build/bin/文件夹中会有生成的二进制文件
+cd ./build/bin/
+ls -al
 ~~~

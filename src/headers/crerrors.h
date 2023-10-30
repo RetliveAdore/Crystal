@@ -13,7 +13,18 @@
 #define CRDES_STRUCTURE_FULL "failed to extend dynamic array's space, size limited to 512MB"
 
 #define CRERR_BINARY_DYN_CREATE 1003
-
 #define CRDES_BINARY_DYN_CREATE "failed to create a dynamic array"
+
+#define CRERR_WINDOW_REGISTERCLASS 1004
+#define CRDES_WINDOW_REGISTERCLASS "error ->RegistweClassEx<- platform Windows"
+
+#define CRERR_WINDOW_OPENDISPLAY 1005
+#define CRDES_WINDOW_OPENDISPLAY "error ->XOpenDisplay<- platform Linux"
+
+#define CRERR_WINDOW_CRCREATEPOOL 1006
+#define CRDES_WINDOW_CRCREATEPOOL "failed to create window Pool"
+
+#define CRERR_WINDOW_CRCREATEIDPOOL 1007
+#define CRDES_WINDOW_CRCREATEIDPOOL "failed to create ID pool"
 
 #endif  //include

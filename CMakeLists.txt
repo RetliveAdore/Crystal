@@ -13,7 +13,7 @@ add_compile_options(-fPIC)
 add_link_options(-no-pie)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  link_libraries(m dl pthread)
+  link_libraries(m dl pthread X11 GL GLU)
 endif()
 
 file(GLOB_RECURSE Crystal_Files
@@ -36,6 +36,11 @@ file(GLOB_RECURSE Binary_Files
 "./src/parts/binary/*.*"
 )
 
+file(GLOB_RECURSE CrUI_Files
+"./include/*.*"
+"./src/parts/UI/*.*"
+)
+
 file(GLOB_RECURSE Demo_Files
 "./Demo/*.*"
 )
@@ -44,26 +49,30 @@ add_library("Crystal" SHARED ${Crystal_Files})
 add_library("Crdynextra" SHARED ${Dynextra_Files})
 add_library("Crbasic" SHARED ${Basic_Files})
 add_library("Crbinary" SHARED ${Binary_Files})
+add_library("CrUI" SHARED ${CrUI_Files})
 add_compile_definitions("Crystal" CR_SHARED_LIB CR_BUILD_DLL)
 
 #这里面会有很多用于验证的演示
 add_executable("Demo" ${Demo_Files})
 
 #添加库依赖
-target_link_libraries("Demo" Crystal Crdynextra Crbasic Crbinary)
+target_link_libraries("Demo" Crystal Crdynextra Crbasic Crbinary CrUI)
 target_link_libraries("Crdynextra" Crystal)
 target_link_libraries("Crbasic" Crystal)
 target_link_libraries("Crbinary" Crystal Crdynextra)
+target_link_libraries("CrUI" Crystal Crbasic)
 
-add_dependencies("Demo" "Crystal" "Crbinary")
+add_dependencies("Demo" "Crystal" "Crbasic" "Crbinary" "CrUI")
 add_dependencies("Crdynextra" "Crystal")
 add_dependencies("Crbasic" "Crystal")
 add_dependencies("Crbinary" "Crystal" "Crdynextra")
+add_dependencies("CrUI" "Crystal" "Crbasic")
 
 if(MSVC)
+  set_property(TARGET "Demo" PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
   set_property(TARGET "Crystal" PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
   set_property(TARGET "Crdynextra" PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
   set_property(TARGET "Crbasic" PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
   set_property(TARGET "Crbinary" PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-  set_property(TARGET "Demo" PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+  set_property(TARGET "CrUI" PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
