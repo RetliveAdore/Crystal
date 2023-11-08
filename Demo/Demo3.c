@@ -13,8 +13,10 @@ int Demo3(int argc, char** argv)
 	CRWINDOW window1 = CRCreateWindow("Demo1", CRWINDOW_USEDEFAULT, CRWINDOW_USEDEFAULT, 600, 400);
 	if (!window1)
 		printf("error: %s\n", CRGetError(0));
-	CRSleep(3000);
+	CRSleep(10000);
 	CRCloseWindow(window1);
+
+	while (CRUIOnQuit()) CRSleep(1);
 
 	CRUIUnInit();
 	return 0;

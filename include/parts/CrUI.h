@@ -11,9 +11,26 @@
 #include "../datastructure.h"
 
 #define CRWINDOW_USEDEFAULT (CRUINT32)0xffffffff
+#define CRUI_TITLEBAR_PIXEL 20
 
 //0是无效窗口
 typedef CRUINT64 CRWINDOW;
+
+typedef struct
+{
+	float r;
+	float g;
+	float b;
+	float a;
+}CRCOLORF;
+
+typedef struct
+{
+	CRUINT8 r;
+	CRUINT8 g;
+	CRUINT8 b;
+	CRUINT8 a;
+}CRCOLORU;
 
 typedef struct
 {
@@ -51,15 +68,23 @@ typedef struct
 //这个被用于设置回调，方晶中的所有信息都被抽象为事件
 typedef CRCODE (*CRWindowCallback)(PCRUIMSG msg);
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //这个真得初始化了才能用
 CRAPI CRCODE CRUIInit();
 CRAPI void CRUIUnInit();
-//当还有窗体在工作时返回CRFALSE，
-CRAPI CRBOOL CRUIOnQuit();
+//当还有窗体在工作时返回数量，
+CRAPI CRCODE CRUIOnQuit();
 
 //不要让单次的任务太复杂
 //在方晶引擎中，每一个窗体都对应一个独立的线程
 CRAPI CRWINDOW CRCreateWindow(const char* title, CRUINT32 x, CRUINT32 y, CRUINT32 w, CRUINT32 h);
 CRAPI CRCODE CRCloseWindow(CRWINDOW window);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  //include

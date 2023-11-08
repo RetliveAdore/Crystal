@@ -15,6 +15,10 @@ typedef CRSTRUCTURE* PCRSTRUCTURE;
 */
 typedef void(*DSCallback)(CRLVOID data);
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
 分别为：创建——动态数组、键值树、线性表、环形数组
 需要注意：Dynamic和Loop每个单元存储的都是一字节（8位）
@@ -70,6 +74,10 @@ CRAPI CRCODE CRTreeGet(CRSTRUCTURE tree, CRLVOID* data, CRINT64 key);
 CRAPI CRCODE CRLinPut(CRSTRUCTURE lin, CRLVOID data, CRINT64 seek);
 CRAPI CRCODE CRLinSeek(CRSTRUCTURE lin, CRLVOID* data, CRINT64 seek);
 CRAPI CRCODE CRLinGet(CRSTRUCTURE lin, CRLVOID* data, CRINT64 seek);
+
+#ifdef __cplusplus
+}
+#endif
 
 /*
 * 这些都是对上述线性表功能的再封装

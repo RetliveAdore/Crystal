@@ -9,6 +9,10 @@ typedef CRLVOID CRLOCK;
 
 typedef void (*CRThreadFunction)(CRLVOID userdata, CRTHREAD idThis);
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 //初始化之后才能正常使用全部功能
 CRAPI CRCODE CRBasicInit();
 CRAPI void CRBasicUninit();
@@ -18,10 +22,6 @@ CRAPI void CRBasicUninit();
 /*
 * 和时间相关的函数，包含休眠、计时器等
 */
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 CRAPI void CRSleep(CRUINT64 ms);
 

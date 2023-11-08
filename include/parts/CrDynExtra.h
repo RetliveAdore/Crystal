@@ -38,7 +38,15 @@ offset->|<--len-->|
 
 //最长操作64位比特
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 CRAPI CRUINT64 CRDynGetBits(CRSTRUCTURE dyn, CRUINT64 offset, CRUINT8 len);
 CRAPI CRCODE CRDynSetBits(CRSTRUCTURE dyn, CRUINT64 offset, CRUINT8 len, CRUINT64 bits);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  //include
