@@ -217,13 +217,6 @@ ccl_gl::~ccl_gl()
     glXDestroyContext(dpy, context);
 }
 
-void ccl_gl::PaintAll()
-{
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    DrawDemo();
-    glXSwapBuffers(dpy, w);
-}
-
 #elif defined CR_WINDOWS
 
 //像素格式
@@ -266,9 +259,6 @@ ccl_gl::ccl_gl(HDC hDc)
      * 创建环境完毕
      */
     InitGL();
-
-    //查询
-    //glGetFloatv(GL_LINE_WIDTH_RANGE, range);
 }
 
 ccl_gl::~ccl_gl()
@@ -277,25 +267,59 @@ ccl_gl::~ccl_gl()
     wglDeleteContext(_hRc);
 }
 
+#endif
+
+void _fill_port_(float r, float g, float b)
+{
+    glColor3f(r, g, b);
+    glBegin(GL_QUADS);
+    glVertex3f(1.0f, 1.0f, 0);
+    glVertex3f(1.0f, -1.0f, 0);
+    glVertex3f(-1.0f, -1.0f, 0);
+    glVertex3f(-1.0f, 1.0f, 0);
+    glEnd();
+}
+
 void ccl_gl::PaintAll()
 {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    //
+    glLoadIdentity();
+    glOrtho(-1.0f, 1.0f, -1.0f, 1.0f, 1.0f, -1.0f);
+    //标题栏底色
+    glViewport(0, _h - CRUI_TITLEBAR_PIXEL, _w, CRUI_TITLEBAR_PIXEL);
+    _fill_port_(0.2, 0.3, 0.35);
+    //三个按钮
+    glViewport(CRUI_TITLEBAR_PIXEL / 4, _h - CRUI_TITLEBAR_PIXEL / 4 * 3, CRUI_TITLEBAR_PIXEL / 2, CRUI_TITLEBAR_PIXEL / 2);
+    _fill_port_(0.95, 0.45, 0.55);
+    //
+    glViewport(CRUI_TITLEBAR_PIXEL + CRUI_TITLEBAR_PIXEL / 4, _h - CRUI_TITLEBAR_PIXEL / 4 * 3, CRUI_TITLEBAR_PIXEL / 2, CRUI_TITLEBAR_PIXEL / 2);
+    _fill_port_(0.55, 0.9, 0.55);
+    //
+    glViewport(CRUI_TITLEBAR_PIXEL * 2 + CRUI_TITLEBAR_PIXEL / 4, _h - CRUI_TITLEBAR_PIXEL / 4 * 3, CRUI_TITLEBAR_PIXEL / 2, CRUI_TITLEBAR_PIXEL / 2);
+    _fill_port_(0.6, 0.65, 1.0);
+    //
+    Resize(_w, _h);
+    //
     DrawDemo();
+#ifdef CR_WINDOWS
     SwapBuffers(_hDc);
-}
-
+#elif defined CR_LINUX
+    glXSwapBuffers(dpy, w);
 #endif
+}
 
 void ccl_gl::Resize(CRUINT32 x, CRUINT32 y)
 {
-    glViewport(0, 0, x, y);
+    _w = x, _h = y;
+    glViewport(0, 0, x, y - CRUI_TITLEBAR_PIXEL);
     glLoadIdentity();
     if (x > y)
     {
-        glOrtho(-100.0f * x / y, 100.0f * x / y, -100.0f, 100.0f, 10.0f, -1000.0f);
+        glOrtho(-100.0f * x / (y - CRUI_TITLEBAR_PIXEL), 100.0f * x / (y - CRUI_TITLEBAR_PIXEL), -100.0f, 100.0f, 10.0f, -1000.0f);
     }
     else
     {
-        glOrtho(-100.0f, 100.0f, -100.0f * y / x, 100.0f * y / x, 10.0f, -1000.0f);
+        glOrtho(-100.0f, 100.0f, -100.0f * (y - CRUI_TITLEBAR_PIXEL) / x, 100.0f * (y - CRUI_TITLEBAR_PIXEL) / x, 10.0f, -1000.0f);
     }
 }

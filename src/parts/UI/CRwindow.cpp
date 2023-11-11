@@ -126,6 +126,8 @@ typedef struct cr_windowthread_inf
 	CRTHREAD windowThread;
 	CRTHREAD paintThread;
 	CRTHREAD moveThread;
+	//用于标题栏按钮判断
+	CRBOOL preClose;
 } CRWINDOWINF;
 
 class CRWindowWindows : public CRWindow
@@ -158,6 +160,7 @@ CRWindowWindows::CRWindowWindows(
 {
 	inf.pThis = this;
 	inf.onQuit = CRFALSE;
+	inf.preClose = CRFALSE;
 	inf.fps = 60;
 	inf.title = title;
 
@@ -319,17 +322,40 @@ LRESULT AfterProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, CRWindowWin
 	}
 	case WM_MOUSEMOVE:
 	{
+		pThis->inf.x = cbinfo.x;
+		pThis->inf.y = cbinfo.y;
 		cbinfo.status = CRUI_STAT_MOVE;
 		pThis->funcs[CRUI_MOUSE_CB](&cbinfo);
+		return 0;
+	}
+	case WM_SETCURSOR:
+	{
+		if (pThis->inf.y < CRUI_TITLEBAR_PIXEL && pThis->inf.x < CRUI_TITLEBAR_PIXEL)
+			SetCursor(LoadCursor(NULL, IDC_HAND));
+		else
+			SetCursor(LoadCursor(NULL, IDC_ARROW));
 		return 0;
 	}
 	case WM_LBUTTONDOWN:
 	{
 		if (cbinfo.h < CRUI_TITLEBAR_PIXEL)
 		{
-			pThis->follow(CRTRUE);
-			pThis->inf.dx = cbinfo.x;
-			pThis->inf.dy = cbinfo.y;
+			if (cbinfo.x > CRUI_TITLEBAR_PIXEL * 3)
+			{
+				pThis->follow(CRTRUE);
+				pThis->inf.dx = cbinfo.x;
+				pThis->inf.dy = cbinfo.y;
+			}
+			else if (cbinfo.x > CRUI_TITLEBAR_PIXEL * 2)
+			{
+
+			}
+			else if (cbinfo.x > CRUI_TITLEBAR_PIXEL)
+			{
+
+			}
+			else
+				pThis->inf.preClose = CRTRUE;
 		}
 		else
 		{
@@ -340,9 +366,27 @@ LRESULT AfterProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, CRWindowWin
 	}
 	case WM_LBUTTONUP:
 	{
+		if (cbinfo.h < CRUI_TITLEBAR_PIXEL)
+		{
+			if (cbinfo.x > CRUI_TITLEBAR_PIXEL * 3)
+			{
+			}
+			else if (cbinfo.x > CRUI_TITLEBAR_PIXEL * 2)
+			{
+			}
+			else if (cbinfo.x > CRUI_TITLEBAR_PIXEL)
+			{
+			}
+			else if (pThis->inf.preClose)
+				pThis->clear();
+		}
+		else
+		{
+			cbinfo.status = CRUI_STAT_UP | CRUI_STAT_LEFT;
+			pThis->funcs[CRUI_MOUSE_CB](&cbinfo);
+		}
 		pThis->follow(CRFALSE);
-		cbinfo.status = CRUI_STAT_UP | CRUI_STAT_LEFT;
-		pThis->funcs[CRUI_MOUSE_CB](&cbinfo);
+		pThis->inf.preClose = CRFALSE;
 		return 0;
 	}
 	case WM_RBUTTONDOWN:
@@ -521,9 +565,14 @@ CRAPI CRWINDOW CRCreateWindow(const char* title, CRUINT32 x, CRUINT32 y, CRUINT3
 #include <stdlib.h>
 #include <string.h>
 #include <cropgl.hpp>
+#include <X11/cursorfont.h>
 
 Display *pDisplay;
 Window rootWindow;
+//等什么时候有时间了分到新文件里面去
+#define CR_X_CURSOR_DEFAULT 0
+#define CR_X_CURSOR_HAND    1
+Cursor cursors[4];
 
 typedef struct cr_windowthread_inf
 {
@@ -542,6 +591,8 @@ typedef struct cr_windowthread_inf
 	Atom protocols_quit;
 	CRTHREAD windowThread = 0;
 	CRTHREAD paintThread = 0;
+	//
+	CRBOOL preClose;
 } CRWINDOWINF;
 
 class CRWindowLinux : public CRWindow
@@ -664,7 +715,12 @@ void ProcessMsg(CRWINDOWINF *inf)
 		}
 		case MotionNotify:
 		{
-			if (pWindow->follow_stat() && !inf->onQuit)
+			if (event.xbutton.x < CRUI_TITLEBAR_PIXEL && event.xbutton.y < CRUI_TITLEBAR_PIXEL)
+				XDefineCursor(pDisplay, inf->win, cursors[CR_X_CURSOR_HAND]);
+			else
+				XDefineCursor(pDisplay, inf->win, cursors[CR_X_CURSOR_DEFAULT]);
+			//
+			if (pWindow->follow_stat())
 				XMoveWindow(pDisplay, inf->win, event.xmotion.x_root - inf->dx, event.xmotion.y_root - inf->dy);
 			else
 			{
@@ -684,11 +740,22 @@ void ProcessMsg(CRWINDOWINF *inf)
 				cbinfo.status |= CRUI_STAT_RIGHT;
 			cbinfo.x = event.xbutton.x;
 			cbinfo.y = event.xbutton.y;
-			if (cbinfo.y < CRUI_TITLEBAR_PIXEL)
+			if (event.xbutton.button == 1 && cbinfo.h < CRUI_TITLEBAR_PIXEL)
 			{
-				inf->dx = event.xbutton.x;
-				inf->dy = event.xbutton.y;
-				pWindow->follow(CRTRUE);
+				if (cbinfo.x > CRUI_TITLEBAR_PIXEL * 3)
+				{
+					inf->dx = event.xbutton.x;
+					inf->dy = event.xbutton.y;
+					pWindow->follow(CRTRUE);
+				}
+				else if (cbinfo.x > CRUI_TITLEBAR_PIXEL * 2)
+				{
+				}
+				else if (cbinfo.x > CRUI_TITLEBAR_PIXEL)
+				{
+				}
+				else
+					inf->preClose = CRTRUE;
 			}
 			else
 				inf->cbk[CRUI_MOUSE_CB](&cbinfo);
@@ -696,15 +763,33 @@ void ProcessMsg(CRWINDOWINF *inf)
 		}
 		case ButtonRelease:
 		{
+			if (event.xbutton.button == 1 && cbinfo.h < CRUI_TITLEBAR_PIXEL)
+			{
+				if (cbinfo.x > CRUI_TITLEBAR_PIXEL * 3)
+				{
+				}
+				else if (cbinfo.x > CRUI_TITLEBAR_PIXEL * 2)
+				{
+				}
+				else if (cbinfo.x > CRUI_TITLEBAR_PIXEL)
+				{
+				}
+				else if (inf->preClose)
+					pWindow->clear();
+			}
+			else
+			{
+				if (event.xbutton.button == 1)
+					cbinfo.status |= CRUI_STAT_LEFT;
+				else if (event.xbutton.button == 3)
+					cbinfo.status |= CRUI_STAT_RIGHT;
+				cbinfo.x = event.xbutton.x;
+				cbinfo.y = event.xbutton.y;
+				pWindow->follow(CRFALSE);
+				inf->cbk[CRUI_MOUSE_CB](&cbinfo);
+			}
 			cbinfo.status = CRUI_STAT_UP;
-			if (event.xbutton.button == 1)
-				cbinfo.status |= CRUI_STAT_LEFT;
-			else if (event.xbutton.button == 3)
-				cbinfo.status |= CRUI_STAT_RIGHT;
-			cbinfo.x = event.xbutton.x;
-			cbinfo.y = event.xbutton.y;
-			pWindow->follow(CRFALSE);
-			inf->cbk[CRUI_MOUSE_CB](&cbinfo);
+			inf->preClose = CRFALSE;
 			break;
 		}
 		case KeyPress:
@@ -852,7 +937,6 @@ void _paint_thread_(CRLVOID data, CRTHREAD idThis)
 
 	CRTIMER timer = CRTimer();
 	CRTimerMark(timer);
-	printf("paint\n");
 	while (!inf->onQuit)
 	{
 		if (CRTimerPeek(timer) >= (float)1 / (float)(inf->fps) || inf->paint)
@@ -867,13 +951,10 @@ void _paint_thread_(CRLVOID data, CRTHREAD idThis)
 	}
 	CRTimerClose(timer);
 	CRWindow* pWindow = (CRWindow*)(inf->pThis);
-	printf("end pgl\n");
 	delete inf->pgl;
 	CRLinPut(availableID, (CRLVOID)(pWindow->GetID()), 0);
 	CRTreeGet(windowPool, NULL, pWindow->GetID());
-	printf("over paint\n");
 	delete pWindow;
-	printf("end paint\n");
 }
 
 CRAPI CRCODE CRUIInit()
@@ -888,6 +969,9 @@ CRAPI CRCODE CRUIInit()
 		pDisplay = XOpenDisplay(NULL);
 		rootWindow = DefaultRootWindow(pDisplay);
 		CurrentID = 1;
+		//光标形状
+		cursors[CR_X_CURSOR_DEFAULT] = XCreateFontCursor(pDisplay, XC_left_ptr);
+		cursors[CR_X_CURSOR_HAND] = XCreateFontCursor(pDisplay, XC_hand2);
 		inited = CRTRUE;
 	}
 	return 0;
@@ -936,7 +1020,7 @@ CRAPI CRCODE CRUIOnQuit()
 
 CRAPI CRCODE CRCloseWindow(CRWINDOW window)
 {
-	CRWindow* pWindow;
+	CRWindow* pWindow = NULL;
 	CRTreeSeek(windowPool, (CRLVOID*)&pWindow, window);
 	if (!pWindow)
 		return CRERR_INVALID;
