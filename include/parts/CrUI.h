@@ -11,7 +11,7 @@
 #include "../datastructure.h"
 
 #define CRWINDOW_USEDEFAULT (CRUINT32)0xffffffff
-#define CRUI_TITLEBAR_PIXEL 20
+#define CRUI_TITLEBAR_PIXEL 35
 
 //0是无效窗口
 typedef CRUINT64 CRWINDOW;

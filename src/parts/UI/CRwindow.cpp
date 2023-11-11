@@ -8,7 +8,6 @@ static CRSTRUCTURE availableID = nullptr; // queue
 static CRUINT64 CurrentID = 1;
 static CRBOOL inited = CRFALSE;
 static CRBOOL wndclass = CRFALSE;
-
 // 什么也不做，仅用于防止空指针
 CRCODE _do_nothing_(PCRUIMSG msg) { return 0; }
 
@@ -39,13 +38,17 @@ public:
 	virtual void clear() = 0;
 	virtual void Text(const char *text) = 0; // 如果要设置窗口标题的话，使用该函数
 	virtual void Move(CRINT32 x, CRINT32 y, CRUINT32 w, CRUINT32 h) = 0;
+	
+	//一些具有共通性的函数
+	void SetMinmax(CRUINT32 minx, CRUINT32 miny, CRUINT32 maxx, CRUINT32 maxy);
+	void follow(CRBOOL ifFollow);
+	CRBOOL follow_stat();
 
 	/*
 	 * 下面的方法基本上是平台无关的，无需重写
 	 */
 
 public:
-	void SetMinmax(CRUINT32 minx, CRUINT32 miny, CRUINT32 maxx, CRUINT32 maxy);
 	CRWINDOW GetID();
 	void SetID(CRWINDOW id);
 	// 公开变量，可以迅速设置是否限制大小
@@ -65,8 +68,8 @@ protected:
 	CRUINT32 _maxx = 0, _maxy = 0;
 	CRUINT32 _minx = 0, _miny = 0;
 
-	CRTHREAD windowThread = 0;
-	CRTHREAD paintThread = 0;
+	//用于决定是否拖动窗口
+	CRBOOL move = CRFALSE;
 };
 
 void CRWindow::SetMinmax(CRUINT32 minx, CRUINT32 miny, CRUINT32 maxx, CRUINT32 maxy)
@@ -77,6 +80,16 @@ void CRWindow::SetMinmax(CRUINT32 minx, CRUINT32 miny, CRUINT32 maxx, CRUINT32 m
 		maxy = miny;
 	_minx = minx, _miny = miny;
 	_maxx = maxx, _maxy = maxy;
+}
+
+void CRWindow::follow(CRBOOL ifFollow)
+{
+	move = ifFollow;
+}
+
+CRBOOL CRWindow::follow_stat()
+{
+	return move;
 }
 
 CRWINDOW CRWindow::GetID()
@@ -97,6 +110,8 @@ void CRWindow::SetID(CRWINDOW id)
 #include <gl/GLU.h>
 #include <cropgl.hpp>
 
+void _move_thread_(CRLVOID data, CRTHREAD idThis);
+
 typedef struct cr_windowthread_inf
 {
 	HWND hWnd;
@@ -105,8 +120,12 @@ typedef struct cr_windowthread_inf
 	const char *title;
 	CRUINT32 w, h;
 	CRINT32 x, y;
+	CRUINT32 dx, dy;
 	CRBOOL onQuit;
 	ccl_gl* pgl;  // 负责绘制的类
+	CRTHREAD windowThread;
+	CRTHREAD paintThread;
+	CRTHREAD moveThread;
 } CRWINDOWINF;
 
 class CRWindowWindows : public CRWindow
@@ -129,7 +148,6 @@ private:
 	CRWINDOWINF inf;
 
 	friend LRESULT AfterProc(HWND, UINT, WPARAM, LPARAM, CRWindowWindows *);
-	friend void windowserv_ccl(void *req);
 	friend LRESULT WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 };
 
@@ -161,8 +179,9 @@ CRWindowWindows::CRWindowWindows(
 	inf.y = y;
 	inf.pgl = nullptr;
 
-	windowThread = CRThread(_window_thread_, &inf);
-	paintThread = CRThread(_paint_thread_, &inf);
+	inf.windowThread = CRThread(_window_thread_, &inf);
+	inf.paintThread = CRThread(_paint_thread_, &inf);
+	inf.moveThread = CRThread(_move_thread_, &inf);
 }
 
 CRWindowWindows::~CRWindowWindows()
@@ -243,6 +262,25 @@ void _paint_thread_(CRLVOID data, CRTHREAD idThis)
 	CRTimerClose(timer);
 }
 
+void _move_thread_(CRLVOID data, CRTHREAD idThis)
+{
+	CRWINDOWINF* inf = (CRWINDOWINF*)data;
+	CRWindow* pWindow = (CRWindow*)inf->pThis;
+	CRTIMER timer = CRTimer();
+	while (!inf->onQuit)
+	{
+		if (pWindow->follow_stat())
+		{
+			POINT p;
+			RECT r;
+			GetCursorPos(&p);
+			GetClientRect(inf->hWnd, &r);
+			MoveWindow(inf->hWnd, p.x - inf->dx, p.y - inf->dy, r.right, r.bottom, TRUE);
+		}
+		CRSleep(1);
+	}
+}
+
 LRESULT AfterProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, CRWindowWindows *pThis)
 {
 	CRUIMSG cbinfo;
@@ -287,12 +325,22 @@ LRESULT AfterProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, CRWindowWin
 	}
 	case WM_LBUTTONDOWN:
 	{
-		cbinfo.status = CRUI_STAT_DOWN | CRUI_STAT_LEFT;
-		pThis->funcs[CRUI_MOUSE_CB](&cbinfo);
+		if (cbinfo.h < CRUI_TITLEBAR_PIXEL)
+		{
+			pThis->follow(CRTRUE);
+			pThis->inf.dx = cbinfo.x;
+			pThis->inf.dy = cbinfo.y;
+		}
+		else
+		{
+			cbinfo.status = CRUI_STAT_DOWN | CRUI_STAT_LEFT;
+			pThis->funcs[CRUI_MOUSE_CB](&cbinfo);
+		}
 		return 0;
 	}
 	case WM_LBUTTONUP:
 	{
+		pThis->follow(CRFALSE);
 		cbinfo.status = CRUI_STAT_UP | CRUI_STAT_LEFT;
 		pThis->funcs[CRUI_MOUSE_CB](&cbinfo);
 		return 0;
@@ -475,6 +523,7 @@ CRAPI CRWINDOW CRCreateWindow(const char* title, CRUINT32 x, CRUINT32 y, CRUINT3
 #include <cropgl.hpp>
 
 Display *pDisplay;
+Window rootWindow;
 
 typedef struct cr_windowthread_inf
 {
@@ -483,6 +532,7 @@ typedef struct cr_windowthread_inf
 	const char *title;
 	CRUINT32 w, h;
 	CRINT32 x, y;
+	CRUINT32 dx, dy;
 	CRWindowCallback *cbk;
 	CRBOOL onQuit;
 	XVisualInfo *vi;
@@ -490,6 +540,8 @@ typedef struct cr_windowthread_inf
 	ccl_gl *pgl;
 	CRBOOL paint;
 	Atom protocols_quit;
+	CRTHREAD windowThread = 0;
+	CRTHREAD paintThread = 0;
 } CRWINDOWINF;
 
 class CRWindowLinux : public CRWindow
@@ -537,7 +589,7 @@ CRWindowLinux::CRWindowLinux(const char *title,
 		y = (s_h - h) / 2;
 
 	inf.w = w;
-	inf.h = h;
+	inf.h = h + CRUI_TITLEBAR_PIXEL;
 	inf.x = x;
 	inf.y = y;
 	inf.win = 0;
@@ -545,8 +597,8 @@ CRWindowLinux::CRWindowLinux(const char *title,
 	inf.pThis = this;
 	inf.pgl = nullptr;
 	inf.paint = CRFALSE;
-	windowThread = CRThread(_window_thread_, &inf);
-	paintThread = CRThread(_paint_thread_, &inf);
+	inf.windowThread = CRThread(_window_thread_, &inf);
+	inf.paintThread = CRThread(_paint_thread_, &inf);
 }
 
 CRWindowLinux::~CRWindowLinux()
@@ -612,10 +664,15 @@ void ProcessMsg(CRWINDOWINF *inf)
 		}
 		case MotionNotify:
 		{
-			cbinfo.status = CRUI_STAT_MOVE;
-			cbinfo.x = event.xbutton.x;
-			cbinfo.y = event.xbutton.y;
-			inf->cbk[CRUI_MOUSE_CB](&cbinfo);
+			if (pWindow->follow_stat() && !inf->onQuit)
+				XMoveWindow(pDisplay, inf->win, event.xmotion.x_root - inf->dx, event.xmotion.y_root - inf->dy);
+			else
+			{
+				cbinfo.status = CRUI_STAT_MOVE;
+				cbinfo.x = event.xbutton.x;
+				cbinfo.y = event.xbutton.y;
+				inf->cbk[CRUI_MOUSE_CB](&cbinfo);
+			}
 			break;
 		}
 		case ButtonPress:
@@ -627,7 +684,14 @@ void ProcessMsg(CRWINDOWINF *inf)
 				cbinfo.status |= CRUI_STAT_RIGHT;
 			cbinfo.x = event.xbutton.x;
 			cbinfo.y = event.xbutton.y;
-			inf->cbk[CRUI_MOUSE_CB](&cbinfo);
+			if (cbinfo.y < CRUI_TITLEBAR_PIXEL)
+			{
+				inf->dx = event.xbutton.x;
+				inf->dy = event.xbutton.y;
+				pWindow->follow(CRTRUE);
+			}
+			else
+				inf->cbk[CRUI_MOUSE_CB](&cbinfo);
 			break;
 		}
 		case ButtonRelease:
@@ -639,6 +703,7 @@ void ProcessMsg(CRWINDOWINF *inf)
 				cbinfo.status |= CRUI_STAT_RIGHT;
 			cbinfo.x = event.xbutton.x;
 			cbinfo.y = event.xbutton.y;
+			pWindow->follow(CRFALSE);
 			inf->cbk[CRUI_MOUSE_CB](&cbinfo);
 			break;
 		}
@@ -664,10 +729,11 @@ void ProcessMsg(CRWINDOWINF *inf)
 			{
 				if (!inf->cbk[CRUI_QUIT_CB](&cbinfo))
 				{
+					pWindow->quit();
 					// 释放
 					XSelectInput(pDisplay, inf->win, NoEventMask);
+					CRWaitThread(inf->paintThread);
 					XDestroyWindow(pDisplay, inf->win);
-					pWindow->quit();
 				}
 			}
 			break;
@@ -720,7 +786,6 @@ typedef struct _mwmhints
 
 void _window_thread_(CRLVOID data, CRTHREAD idThis)
 {
-	Window root;
 	GLint att[] = {
 		GLX_RGBA,
 		GLX_DOUBLEBUFFER,
@@ -736,9 +801,8 @@ void _window_thread_(CRLVOID data, CRTHREAD idThis)
 
 	CRWINDOWINF* inf = (CRWINDOWINF*)data;
 
-	root = DefaultRootWindow(pDisplay);
 	inf->vi = glXChooseVisual(pDisplay, 0, att);
-	cmap = XCreateColormap(pDisplay, root, inf->vi->visual, AllocNone);
+	cmap = XCreateColormap(pDisplay, rootWindow, inf->vi->visual, AllocNone);
 
 	swa.colormap = cmap;
 	//选择关心的事件
@@ -747,7 +811,7 @@ void _window_thread_(CRLVOID data, CRTHREAD idThis)
 	| KeyReleaseMask | ButtonReleaseMask
 	| PointerMotionMask
 	| StructureNotifyMask;
-	inf->win = XCreateWindow(pDisplay, root, inf->x, inf->y, inf->w, inf->h, 0, inf->vi->depth, InputOutput, inf->vi->visual, CWColormap | CWEventMask, &swa);
+	inf->win = XCreateWindow(pDisplay, rootWindow, inf->x, inf->y, inf->w, inf->h, 0, inf->vi->depth, InputOutput, inf->vi->visual, CWColormap | CWEventMask, &swa);
 	XStoreName(pDisplay, inf->win, inf->title);
 	//
 	//无边框窗口的制作：
@@ -762,15 +826,13 @@ void _window_thread_(CRLVOID data, CRTHREAD idThis)
 	    PropModeReplace, (unsigned char*)&mwmhints,
 	    PROP_MWM_HINTS_ELEMENTS
 	);
-	
-
 	XMapWindow(pDisplay, inf->win);
+
+	XMoveResizeWindow(pDisplay, inf->win, inf->x, inf->y, inf->w, inf->h);
 
 	//捕获退出事件
 	inf->protocols_quit = XInternAtom(pDisplay, "WM_DELETE_WINDOW", True);
 	XSetWMProtocols(pDisplay, inf->win, &(inf->protocols_quit), 1);
-
-	// inf->pgl = new ccl_gl(pDisplay, vi, inf->win);
 
 	/**/
 	ProcessMsg(inf);
@@ -790,6 +852,7 @@ void _paint_thread_(CRLVOID data, CRTHREAD idThis)
 
 	CRTIMER timer = CRTimer();
 	CRTimerMark(timer);
+	printf("paint\n");
 	while (!inf->onQuit)
 	{
 		if (CRTimerPeek(timer) >= (float)1 / (float)(inf->fps) || inf->paint)
@@ -804,10 +867,13 @@ void _paint_thread_(CRLVOID data, CRTHREAD idThis)
 	}
 	CRTimerClose(timer);
 	CRWindow* pWindow = (CRWindow*)(inf->pThis);
+	printf("end pgl\n");
 	delete inf->pgl;
 	CRLinPut(availableID, (CRLVOID)(pWindow->GetID()), 0);
 	CRTreeGet(windowPool, NULL, pWindow->GetID());
+	printf("over paint\n");
 	delete pWindow;
+	printf("end paint\n");
 }
 
 CRAPI CRCODE CRUIInit()
@@ -820,6 +886,7 @@ CRAPI CRCODE CRUIInit()
 		windowPool = CRTree();
 		availableID = CRLinear();
 		pDisplay = XOpenDisplay(NULL);
+		rootWindow = DefaultRootWindow(pDisplay);
 		CurrentID = 1;
 		inited = CRTRUE;
 	}
@@ -838,6 +905,7 @@ CRAPI void CRUIUnInit()
 	windowPool = NULL;
 	availableID = NULL;
 	XCloseDisplay(pDisplay);
+	rootWindow = 0;
 	inited = CRFALSE;
 	CRBasicUninit();
 }

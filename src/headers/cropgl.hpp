@@ -8,6 +8,7 @@
 #include <GL/glx.h>
 #include <GL/glu.h>
 
+//这些方法是从CCL里面来的，就不改名了（反正都是我写的
 class ccl_gl
 {
 public:
