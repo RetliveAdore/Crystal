@@ -1,7 +1,7 @@
 ﻿#include <Crystal.h>
 #include <parts/Crbasic.h>
 #include <parts/CrUI.h>
-#include <stdio.h>
+
 // 全局变量
 static CRSTRUCTURE windowPool = nullptr;	  // tree
 static CRSTRUCTURE availableID = nullptr; // queue

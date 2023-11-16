@@ -29,6 +29,9 @@ CRAPI double CREntropy(CRSTRUCTURE dyn);
 CRAPI CRCODE CRCompress(CRSTRUCTURE dynIn, CRSTRUCTURE dynOut);
 CRAPI CRCODE CRDecompress(CRSTRUCTURE dynIn, CRSTRUCTURE dynOut);
 
+//用于加载PCM流数据，通常与CRAudio配合使用
+CRAPI CRCODE CRLoadWave(const char* path, CRSTRUCTURE out, CRWWINFO* inf);
+
 #ifdef __cplusplus
 }
 #endif

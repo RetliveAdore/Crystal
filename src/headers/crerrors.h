@@ -27,4 +27,10 @@
 #define CRERR_WINDOW_CRCREATEIDPOOL 1007
 #define CRDES_WINDOW_CRCREATEIDPOOL "failed to create ID pool"
 
+#define CRERR_BINARY_INVALIDPATH 1008
+#define CRDES_BINARY_INVALIDPATH "failed to open the file in this path!"
+
+#define CRERR_BINARY_BROKENFILE 1009
+#define CRDES_BINARY_BROKENFILE "data in file broken, could not read correctly"
+
 #endif  //include

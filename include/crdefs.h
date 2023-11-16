@@ -102,4 +102,41 @@ typedef unsigned long CRUINT64;
 typedef void* CRLVOID;
 typedef CRINT32 CRCODE;
 
+//
+
+/*
+* WAVE格式的文件相关结构体
+*/
+
+typedef struct
+{
+	CRUINT32 ChunkID;
+	CRUINT32 ChunkSize;
+}CRWWBLOCK;
+
+typedef struct
+{
+	CRUINT16 AudioFormat;   //PCM固定为1
+	CRUINT16 NumChannels;   //声道数量
+	CRUINT32 SampleRate;    //采样率，如：44100
+	CRUINT32 ByteRate;
+	CRUINT16 BlockAligh;
+	CRUINT16 BitsPerSample; //采样位宽，如16，24，32
+}CRWWINFO;
+
+typedef struct
+{
+	//
+	CRWWBLOCK whole;  //ChunkID is 'RIFF' or it`s wrong file
+	CRUINT32 format;  //'WAVE' or wrong data
+	//
+	CRWWBLOCK block2;  //ChunkID if 'fmt'
+	CRWWINFO inf;
+	//
+	//...data...  //Search a chunk whose id is 'data', then you find the
+	//            //actual PCM data
+}CRWWHEADER;
+
+//
+
 #endif

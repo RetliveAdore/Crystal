@@ -381,6 +381,7 @@ CRAPI CRCODE CRDynSetup(CRSTRUCTURE dyn, CRUINT8* buffer, CRUINT32 size)
 			LeaveCriticalSection(&(pInner->pub.cs));
 			return CRERR_OUTOFMEM;
 		}
+		free(pInner->arr);
 		pInner->arr = tmp;
 		pInner->pub.total = 0;
 		pInner->capacity = 1;
@@ -395,6 +396,7 @@ CRAPI CRCODE CRDynSetup(CRSTRUCTURE dyn, CRUINT8* buffer, CRUINT32 size)
 		return CRERR_OUTOFMEM;
 	}
 	memcpy(tmp, buffer, size);
+	free(pInner->arr);
 	pInner->arr = tmp;
 	pInner->pub.total = size;
 Done:

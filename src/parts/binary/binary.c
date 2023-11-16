@@ -4,6 +4,8 @@
 #include <crerrors.h>
 #include <malloc.h>
 #include <math.h>
+#include <stdio.h>
+#include <string.h>
 
 CRLD CRUINT8* CRDynArr(CRSTRUCTURE dyn, CRUINT32* size);
 
@@ -26,6 +28,13 @@ CRLD CRUINT8* CRDynArr(CRSTRUCTURE dyn, CRUINT32* size);
 
 #define LZ77_WINDOW_SIZE     4095  //滑动窗口的大小限制（1111_1111_1111B）
 #define LZ77_BUFFER_SIZE     31    //超前缓冲区大小限制（1_1111B）
+
+CRBOOL _compare_chars_(const char* chars1, const char* chars2, CRUINT32 len)
+{
+	for (int i = 0; i < len; i++)
+		if (chars1[i] != chars2[i]) return CRFALSE;
+	return CRTRUE;
+}
 
 CRAPI CRCODE CRBinaryInit()
 {
@@ -222,4 +231,55 @@ CRAPI CRCODE CRDecompress(CRSTRUCTURE dynIn, CRSTRUCTURE dynOut)
 		offset += LZ77_NEXT_BIT_SIZE;
 	}
 	return 0;
+}
+
+CRAPI CRCODE CRLoadWave(const char* path, CRSTRUCTURE out, CRWWINFO* inf)
+{
+	if (!inf)
+		return CRERR_INVALID;
+	FILE* fp = fopen(path, "rb");
+	if (!fp)
+		goto PathError;
+	CRWWHEADER header;
+	CRWWBLOCK block;
+	fread(&header, sizeof(CRWWHEADER), 1, fp);
+	//假如不符合说明文件出错了
+	if (!_compare_chars_((CRUINT8*)&header.whole.ChunkID, "RIFF", 4)) goto FileError;
+	if (!_compare_chars_((CRUINT8*)&header.format, "WAVE", 4)) goto FileError;
+	//
+	fread(&block, sizeof(block), 1, fp);
+	while (!_compare_chars_((CRUINT8*)&block.ChunkID, "data", 4))
+	{
+		fseek(fp, block.ChunkSize, SEEK_CUR);
+		if (!fread(&block, sizeof(block), 1, fp))
+			break;
+	}
+	if (!_compare_chars_((CRUINT8*)&block.ChunkID, "data", 4))
+		goto FileError;
+	//现在是正常加载情况
+	//
+	CRUINT8* buffer = malloc(block.ChunkSize);
+	if (!buffer)
+	{
+		fclose(fp);
+		return CRERR_OUTOFMEM;
+	}
+	if (fread(buffer,1 ,block.ChunkSize, fp) != block.ChunkSize) //然后就遇到不正常的情况了
+	{
+		free(buffer);
+		goto FileError;
+	}
+	CRDynSetup(out, buffer, block.ChunkSize);
+	free(buffer);
+	//
+	fclose(fp);
+	memcpy(inf, &header.inf, sizeof(CRWWINFO));
+	return 0;
+PathError:
+	CRThrowError(CRERR_BINARY_INVALIDPATH, CRDES_BINARY_INVALIDPATH);
+	return CRERR_BINARY_INVALIDPATH;
+FileError:
+	CRThrowError(CRERR_BINARY_BROKENFILE, CRDES_BINARY_BROKENFILE);
+	fclose(fp);
+	return CRERR_BINARY_BROKENFILE;
 }
