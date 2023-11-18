@@ -170,8 +170,7 @@ CRAPI CRCODE CRAudioPlay(CRSTRUCTURE dynPcm, CRWWINFO* inf)
 	CRUINT32 offs = 0;
 	CRINT32 rc;
 	CRINT32 dir = 0;
-	CRUINT8* buffer;
-	CRUINT32 size;
+	CRUINT8* tbuffer;
 	snd_pcm_uframes_t frames;
 	snd_pcm_uframes_t periodsize;
 	snd_pcm_t* handle = nullptr;
@@ -181,7 +180,7 @@ CRAPI CRCODE CRAudioPlay(CRSTRUCTURE dynPcm, CRWWINFO* inf)
 	//获取设备句柄
 	if (snd_pcm_open(&handle, "default", SND_PCM_STREAM_PLAYBACK, 0) < 0)
 		goto Failed;
-	snd_pcm_hw_params_alloca(&params);
+	snd_pcm_hw_params_malloc(&params);
 	snd_pcm_hw_params_any(handle, params);
 	snd_pcm_hw_params_set_access(handle, params, SND_PCM_ACCESS_RW_INTERLEAVED);
 	//
@@ -195,43 +194,36 @@ CRAPI CRCODE CRAudioPlay(CRSTRUCTURE dynPcm, CRWWINFO* inf)
 	snd_pcm_hw_params_set_rate_near(handle, params, &val, &dir);
 	periodsize = 1024;
 	snd_pcm_hw_params_set_period_size(handle, params, periodsize, 0);
-	frames = periodsize << 4;
+	frames = periodsize << 1;
 	snd_pcm_hw_params_set_buffer_size(handle, params, frames);
 	if (snd_pcm_hw_params(handle, params) < 0)
 		goto Failed;
 	//
-	size = periodsize * inf->BlockAlign;
-	buffer = new CRUINT8[size];
-	if (!buffer)
+	tbuffer = new CRUINT8[frames * inf->BlockAlign];
+	if (!tbuffer)
 	{
-		snd_pcm_drain(handle);
 		snd_pcm_close(handle);
 		return CRERR_OUTOFMEM;
 	}
 	//
 	while (offs < CRStructureSize(dynPcm))
 	{
-		_fill_buffer_(buffer, dynPcm, frames, inf, &offs);
-		while (rc = snd_pcm_writei(handle, buffer, frames) < 0)
+		_fill_buffer_(tbuffer, dynPcm, frames, inf, &offs);
+		while (rc = snd_pcm_writei(handle, tbuffer, frames) < 0)
 		{
 			if (rc == -EPIPE)
 				snd_pcm_prepare(handle);
 		}
 	}
 	//
-	delete buffer;
-	snd_pcm_hw_params_free(params);
 	snd_pcm_drain(handle);
 	snd_pcm_close(handle);
+	snd_pcm_hw_params_free(params);
+	delete[] tbuffer;
 	return 0;
 Failed:
-	if (buffer)
-		delete buffer;
 	if (handle)
-	{
-		snd_pcm_drain(handle);
 		snd_pcm_close(handle);
-	}
 	if (params)
 		snd_pcm_hw_params_free(params);
 	CRThrowError(CRERR_AUDIO_FAILEDALSA, CRDES_AUDIO_FAILEDALSA);
