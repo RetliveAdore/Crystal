@@ -269,12 +269,12 @@ CRAPI CRCODE CRLoadWave(const char* path, CRSTRUCTURE out, CRWWINFO* inf)
 		free(buffer);
 		goto FileError;
 	}
-	CRDynSetup(out, buffer, block.ChunkSize);
+	CRCODE code = CRDynSetup(out, buffer, block.ChunkSize);
 	free(buffer);
 	//
 	fclose(fp);
 	memcpy(inf, &header.inf, sizeof(CRWWINFO));
-	return 0;
+	return code;
 PathError:
 	CRThrowError(CRERR_BINARY_INVALIDPATH, CRDES_BINARY_INVALIDPATH);
 	return CRERR_BINARY_INVALIDPATH;

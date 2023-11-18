@@ -120,7 +120,7 @@ typedef struct
 	CRUINT16 NumChannels;   //声道数量
 	CRUINT32 SampleRate;    //采样率，如：44100
 	CRUINT32 ByteRate;
-	CRUINT16 BlockAligh;
+	CRUINT16 BlockAlign;
 	CRUINT16 BitsPerSample; //采样位宽，如16，24，32
 }CRWWINFO;
 

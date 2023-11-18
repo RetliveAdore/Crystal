@@ -17,6 +17,8 @@ extern "C" {
 CRAPI CRCODE CRAudioInit();
 CRAPI void CRAudioUnInit();
 
+CRAPI CRCODE CRAudioPlay(CRSTRUCTURE dynPcm, CRWWINFO* inf);
+
 #ifdef __cplusplus
 }
 #endif

@@ -16,7 +16,7 @@
 #define CRDES_BINARY_DYN_CREATE "failed to create a dynamic array"
 
 #define CRERR_WINDOW_REGISTERCLASS 1004
-#define CRDES_WINDOW_REGISTERCLASS "error ->RegistweClassEx<- platform Windows"
+#define CRDES_WINDOW_REGISTERCLASS "error ->RegistwndClassEx<- platform Windows"
 
 #define CRERR_WINDOW_OPENDISPLAY 1005
 #define CRDES_WINDOW_OPENDISPLAY "error ->XOpenDisplay<- platform Linux"
@@ -32,5 +32,11 @@
 
 #define CRERR_BINARY_BROKENFILE 1009
 #define CRDES_BINARY_BROKENFILE "data in file broken, could not read correctly"
+
+#define CRERR_AUDIO_FAILEDCOM 1010
+#define CRDES_AUDIO_FAILEDCOM "error COM platform Windows"
+
+#define CRERR_AUDIO_FAILEDALSA 1011
+#define CRDES_AUDIO_FAILEDALSA "error ALSA platform Linux"
 
 #endif  //include

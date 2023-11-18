@@ -13,7 +13,7 @@ add_compile_options(-fPIC)
 add_link_options(-no-pie)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  link_libraries(m dl pthread X11 GL GLU)
+  link_libraries(m dl pthread X11 GL GLU asound)
 endif()
 
 file(GLOB_RECURSE Crystal_Files

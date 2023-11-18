@@ -319,10 +319,15 @@ CRAPI CRCODE CRDynPop(CRSTRUCTURE dyn, CRUINT8* data)
 CRAPI CRCODE CRDynSeek(CRSTRUCTURE dyn, CRUINT8* data, CRUINT32 sub)
 {
 	PCRDYN pInner = dyn;
-	if (pInner && pInner->pub.type == DYN && sub < pInner->pub.total)
+	if (pInner && pInner->pub.type == DYN)
 	{
+		if (!data)
+			return CRERR_INVALID;
 		EnterCriticalSection(&(pInner->pub.cs));
-		if (data) *data = pInner->arr[sub];
+		if (sub < pInner->pub.total)
+			*data = pInner->arr[sub];
+		else
+			*data = 0;
 		LeaveCriticalSection(&(pInner->pub.cs));
 		return 0;
 	}
