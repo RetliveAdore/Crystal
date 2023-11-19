@@ -301,7 +301,7 @@ void ccl_gl::PaintAll()
     //
     Resize(_w, _h);
     //
-    DrawDemo();
+    //DrawDemo();
 #ifdef CR_WINDOWS
     SwapBuffers(_hDc);
 #elif defined CR_LINUX

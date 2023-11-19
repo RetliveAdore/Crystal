@@ -9,6 +9,9 @@
 
 #include "../datastructure.h"
 
+typedef void (*CRAudioStreamCbk)(CRUINT8* buffer, CRUINT32 frames, CRUINT32 size);
+typedef CRLVOID CRAUDIOPLAY;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -17,7 +20,17 @@ extern "C" {
 CRAPI CRCODE CRAudioInit();
 CRAPI void CRAudioUnInit();
 
-CRAPI CRCODE CRAudioPlay(CRSTRUCTURE dynPcm, CRWWINFO* inf);
+/*使用一整个buffer来直接播放完整音频*/
+CRAPI CRAUDIOPLAY CRAudioBuffer(CRSTRUCTURE dynPcm, CRWWINFO* inf);
+/*这个API更加具有应变性，可以用作直播流*/
+CRAPI CRAUDIOPLAY CRAudioStream(CRWWINFO* inf, CRAudioStreamCbk);
+/*在上面两个API调用成功之后需要用这个来关闭并释放内存*/
+CRAPI CRCODE CRAudioClose(CRAUDIOPLAY play);
+/*如果想要等待音频播放完毕就使用这个API来释放*/
+CRAPI CRCODE CRAudioWait(CRAUDIOPLAY play);
+
+CRAPI CRCODE CRAudioPause(CRAUDIOPLAY play);
+CRAPI CRCODE CRAudioStart(CRAUDIOPLAY play);
 
 #ifdef __cplusplus
 }

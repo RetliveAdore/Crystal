@@ -5,8 +5,9 @@
 #include <malloc.h>
 #include <stdio.h>
 
-//播放循环周期0.1秒
-#define PREFTIMES_PER_SEC 1000000
+//播放循环周期0.01秒
+#define PREFTIMES_PER_SEC 100000
+#define CR_AUDIOMAGIC (CRUINT8)0x57
 
 #ifdef CR_WINDOWS
 #include <Windows.h>
@@ -28,6 +29,7 @@ IMMDeviceEnumerator* pEnumerator = NULL;
 
 CRAPI CRCODE CRAudioInit()
 {
+	CRBasicInit();
 #ifdef CR_WINDOWS
 	HRESULT hr;
 	hr = CoInitializeEx(NULL, COINIT_SPEED_OVER_MEMORY | COINIT_MULTITHREADED);
@@ -45,6 +47,7 @@ CRAPI CRCODE CRAudioInit()
 
 CRAPI void CRAudioUnInit()
 {
+	CRBasicUninit();
 #ifdef CR_WINDOWS
 	if (pEnumerator)
 		pEnumerator->Release();
@@ -63,31 +66,103 @@ void _fill_buffer_(CRUINT8* Dst, CRSTRUCTURE Src, CRUINT32 frameCount, CRWWINFO*
 
 #ifdef CR_WINDOWS
 
+typedef struct
+{
+	CRUINT8 magic = CR_AUDIOMAGIC;
+	IMMDevice* pDevice = nullptr;
+	IAudioClient* pAudioClient = nullptr;
+	IAudioRenderClient* pRenderClient = nullptr;
+	CRWWINFO* inf = nullptr;
+	CRSTRUCTURE dynPcm = nullptr;
+
+	CRUINT32 hnsActualDuration = 0;
+	CRUINT32 bufferFrameCount = 0;
+	CRUINT32 numFramesAvailable = 0;
+	CRUINT32 numFramesPadding = 0;
+	CRUINT32 offs = 0;
+
+	CRTHREAD idThis = 0;
+	//symbols
+	CRBOOL stop = CRFALSE;
+	CRBOOL pause = CRFALSE;
+}AUTHRINF;
+
+void _audio_thread_(void* data, CRTHREAD idThis)
+{
+	AUTHRINF* auinf = (AUTHRINF*)data;
+	CRUINT8* pData = nullptr;
+	CRBOOL paused = CRFALSE;
+	while (auinf->offs < CRStructureSize(auinf->dynPcm) && !auinf->stop)
+	{
+		//休眠一半时间
+		CRSleep(auinf->hnsActualDuration / 2);
+		if (!paused)
+		{
+			if (auinf->pause)
+			{
+				auinf->pAudioClient->Stop();
+				paused = CRTRUE;
+			}
+			else
+			{
+				//查询剩余空闲空间
+				if (FAILED(auinf->pAudioClient->GetCurrentPadding(&auinf->numFramesPadding)))
+					return;
+				auinf->numFramesAvailable = auinf->bufferFrameCount - auinf->numFramesPadding;
+				HRESULT hr = 0;
+				if (FAILED(hr = auinf->pRenderClient->GetBuffer(auinf->numFramesAvailable, &pData)))
+					return;
+				_fill_buffer_(pData, auinf->dynPcm, auinf->numFramesAvailable, auinf->inf, &auinf->offs);
+				if (FAILED(auinf->pRenderClient->ReleaseBuffer(auinf->numFramesAvailable, 0)))
+					return;
+			}
+		}
+		else
+		{
+			if (!auinf->pause)
+			{
+				auinf->pAudioClient->Start();
+				paused = CRFALSE;
+			}
+		}
+	}
+	CRSleep(auinf->hnsActualDuration / 2);
+	auinf->pAudioClient->Stop();
+	auinf->pDevice->Release();
+	auinf->pAudioClient->Release();
+	auinf->pRenderClient->Release();
+}
+
 //再稍微改一改，由另外一个线程负责buffer就大功告成了
-CRAPI CRCODE CRAudioPlay(CRSTRUCTURE dynPcm, CRWWINFO* inf)
+CRAPI CRAUDIOPLAY CRAudioBuffer(CRSTRUCTURE dynPcm, CRWWINFO* inf)
 {
 	if (!pEnumerator)
-		return CRERR_UNINITED;
+	{
+		CRThrowError(CRERR_UNINITED, NULL);
+		return nullptr;
+	}
 	if (!inf)
-		return CRERR_INVALID;
-	IMMDevice* pDevice = NULL;
-	IAudioClient* pAudioClient = NULL;
-	IAudioRenderClient* pRenderClient = NULL;
+	{
+		CRThrowError(CRERR_INVALID, NULL);
+		return nullptr;
+	}
 	WAVEFORMATEX* pwfx;
-	CRUINT32 hnsActualDuration;
-
-	CRUINT32 bufferFrameCount;
-	CRUINT32 numFramesAvailable;
-	CRUINT32 numFramesPadding;
-	CRUINT32 offs = 0;
 	BYTE* pData = nullptr;
+	AUTHRINF* thinf = new AUTHRINF;
+	if (!thinf)
+	{
+		CRThrowError(CRERR_OUTOFMEM, NULL);
+		return nullptr;
+	}
+	thinf->dynPcm = dynPcm;
+	thinf->inf = inf;
 	//
 	
-	if (FAILED(pEnumerator->GetDefaultAudioEndpoint(eRender, eConsole, &pDevice)))
+	if (FAILED(pEnumerator->GetDefaultAudioEndpoint(eRender, eConsole, &thinf->pDevice)))
 		goto Failed;
-	if (FAILED(pDevice->Activate(IID_IAudioClient, CLSCTX_ALL, NULL, (void**)&pAudioClient)))
+	if (FAILED(thinf->pDevice->Activate(IID_IAudioClient, CLSCTX_ALL, NULL, (void**)&thinf->pAudioClient)))
 		goto Failed;
-	if (FAILED(pAudioClient->GetMixFormat(&pwfx)))
+	if (FAILED(thinf->pAudioClient->GetMixFormat(&pwfx)))
 		goto Failed;
 	//设置音频流数据信息
 	pwfx->wFormatTag = inf->AudioFormat;
@@ -98,7 +173,7 @@ CRAPI CRCODE CRAudioPlay(CRSTRUCTURE dynPcm, CRWWINFO* inf)
 	pwfx->wBitsPerSample = inf->BitsPerSample;
 	pwfx->cbSize = 0;
 	//
-	if (FAILED(pAudioClient->Initialize(
+	if (FAILED(thinf->pAudioClient->Initialize(
 		AUDCLNT_SHAREMODE_SHARED,
 		AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM | AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY,
 		PREFTIMES_PER_SEC,
@@ -107,126 +182,191 @@ CRAPI CRCODE CRAudioPlay(CRSTRUCTURE dynPcm, CRWWINFO* inf)
 		NULL
 	)))
 		goto Failed;
-	if (FAILED(pAudioClient->GetBufferSize(&bufferFrameCount)))
+	if (FAILED(thinf->pAudioClient->GetBufferSize(&thinf->bufferFrameCount)))
 		goto Failed;
-	if (FAILED(pAudioClient->GetService(IID_IAudioRenderClient, (void**)&pRenderClient)))
-		goto Failed;
-	//
-	if (FAILED(pRenderClient->GetBuffer(bufferFrameCount, &pData)))
-		goto Failed;
-	_fill_buffer_(pData, dynPcm, bufferFrameCount, inf, &offs);
-	if (FAILED(pRenderClient->ReleaseBuffer(bufferFrameCount, 0)))
+	if (FAILED(thinf->pAudioClient->GetService(IID_IAudioRenderClient, (void**)&thinf->pRenderClient)))
 		goto Failed;
 	//
-	hnsActualDuration = bufferFrameCount * 1000 / inf->SampleRate;
-	if (FAILED(pAudioClient->Start()))
+	if (FAILED(thinf->pRenderClient->GetBuffer(thinf->bufferFrameCount, &pData)))
 		goto Failed;
-	while (offs < CRStructureSize(dynPcm))
-	{
-		//休眠一半时间
-		CRSleep(hnsActualDuration / 2);
-		//查询剩余空闲空间
-		if (FAILED(pAudioClient->GetCurrentPadding(&numFramesPadding)))
-			goto Failed;
-		numFramesAvailable = bufferFrameCount - numFramesPadding;
-		HRESULT hr = 0;
-		if (FAILED(hr = pRenderClient->GetBuffer(numFramesAvailable, &pData)))
-			goto Failed;
-		_fill_buffer_(pData, dynPcm, numFramesAvailable, inf, &offs);
-		if (FAILED(pRenderClient->ReleaseBuffer(numFramesAvailable, 0)))
-			goto Failed;
-	}
-	CRSleep(hnsActualDuration / 2);
-	pAudioClient->Stop();
+	_fill_buffer_(pData, dynPcm, thinf->bufferFrameCount, inf, &thinf->offs);
+	if (FAILED(thinf->pRenderClient->ReleaseBuffer(thinf->bufferFrameCount, 0)))
+		goto Failed;
 	//
+	thinf->hnsActualDuration = thinf->bufferFrameCount * 1000 / inf->SampleRate;
+	if (FAILED(thinf->pAudioClient->Start()))
+		goto Failed;
+	//开启线程
+	thinf->idThis = CRThread(_audio_thread_, thinf);
 End:
-	pDevice->Release();
-	pAudioClient->Release();
-	pRenderClient->Release();
 	CoTaskMemFree(pwfx);
-	return 0;
+	return thinf;
 Failed:
-	if (pDevice)
-		pDevice->Release();
-	if (pAudioClient)
-		pAudioClient->Release();
-	if (pRenderClient)
-		pRenderClient->Release();
+	if (thinf->pDevice)
+		thinf->pDevice->Release();
+	if (thinf->pAudioClient)
+		thinf->pAudioClient->Release();
+	if (thinf->pRenderClient)
+		thinf->pRenderClient->Release();
 	if (pwfx)
 		CoTaskMemFree(pwfx);
 	CRThrowError(CRERR_AUDIO_FAILEDCOM, CRDES_AUDIO_FAILEDCOM);
-	return CRERR_AUDIO_FAILEDCOM;
+	return nullptr;
 }
 
 #elif defined CR_LINUX
 
+typedef struct
+{
+	CRUINT8 magic = CR_AUDIOMAGIC;
+	snd_pcm_t* handle = nullptr;
+	snd_pcm_uframes_t frames = 0;
+
+	CRWWINFO* inf = nullptr;
+	CRSTRUCTURE dynPcm = nullptr;
+	CRUINT32 offs = 0;
+
+	CRTHREAD idThis = 0;
+	//symbols
+	CRBOOL stop = CRFALSE;
+	CRBOOL pause = CRFALSE;
+}AUTHRINF;
+
+void _audio_thread_(void* data, CRTHREAD idThis)
+{
+	AUTHRINF* auinf = (AUTHRINF*)data;
+	CRBOOL paused = CRFALSE;
+	CRINT32 rc;
+	CRUINT8* pData = new CRUINT8[auinf->frames * auinf->inf->BlockAlign];
+	if (!pData)
+		return;
+	while (auinf->offs < CRStructureSize(auinf->dynPcm) && !auinf->stop)
+	{
+		if (!paused)
+		{
+			if (auinf->pause)
+			{
+				snd_pcm_drop(auinf->handle);
+				paused = CRTRUE;
+			}
+			else
+			{
+				_fill_buffer_(pData, auinf->dynPcm, auinf->frames, auinf->inf, &auinf->offs);
+				while (rc = snd_pcm_writei(auinf->handle, pData, auinf->frames) < 0)
+				{
+					if (rc == -EPIPE)
+						snd_pcm_prepare(auinf->handle);
+				}
+			}
+		}
+		else
+		{
+			if (!auinf->pause)
+			{
+				snd_pcm_prepare(auinf->handle);
+				paused = CRFALSE;
+			}
+		}
+	}
+	snd_pcm_drain(auinf->handle);
+	snd_pcm_close(auinf->handle);
+	delete[] pData;
+}
+
 //反复试验之后，发现，原生的24位音频数据是不支持的，会直接变成噪音（旋律的话能出来一点点）。。。
 //试过16位之后恍然大悟，明显就是溢出了。。。
 //这个是我遇到过的最操蛋的bug
-CRAPI CRCODE CRAudioPlay(CRSTRUCTURE dynPcm, CRWWINFO* inf)
+CRAPI CRAUDIOPLAY CRAudioBuffer(CRSTRUCTURE dynPcm, CRWWINFO* inf)
 {
 	if (!inf || inf->BitsPerSample > 16)
-		return CRERR_INVALID;
-	CRUINT32 offs = 0;
+	{
+		CRThrowError(CRERR_INVALID, NULL);
+		return nullptr;
+	}
 	CRINT32 rc;
 	CRINT32 dir = 0;
-	CRUINT8* tbuffer;
-	snd_pcm_uframes_t frames;
 	snd_pcm_uframes_t periodsize;
-	snd_pcm_t* handle = nullptr;
 	snd_pcm_hw_params_t* params = nullptr;
 	CRUINT32 val = 0;
+	AUTHRINF* thinf = new AUTHRINF;
+	if (!thinf)
+	{
+		CRThrowError(CRERR_OUTOFMEM, NULL);
+		return nullptr;
+	}
+	thinf->dynPcm = dynPcm;
+	thinf->inf = inf;
 
 	//获取设备句柄
-	if (snd_pcm_open(&handle, "default", SND_PCM_STREAM_PLAYBACK, 0) < 0)
+	if (snd_pcm_open(&thinf->handle, "default", SND_PCM_STREAM_PLAYBACK, 0) < 0)
 		goto Failed;
 	snd_pcm_hw_params_malloc(&params);
-	snd_pcm_hw_params_any(handle, params);
-	snd_pcm_hw_params_set_access(handle, params, SND_PCM_ACCESS_RW_INTERLEAVED);
+	snd_pcm_hw_params_any(thinf->handle, params);
+	snd_pcm_hw_params_set_access(thinf->handle, params, SND_PCM_ACCESS_RW_INTERLEAVED);
 	//
 	if (inf->BitsPerSample == 8)
-		snd_pcm_hw_params_set_format(handle, params, SND_PCM_FORMAT_U8);
+		snd_pcm_hw_params_set_format(thinf->handle, params, SND_PCM_FORMAT_U8);
 	else
-		snd_pcm_hw_params_set_format(handle, params, SND_PCM_FORMAT_S16_LE);
+		snd_pcm_hw_params_set_format(thinf->handle, params, SND_PCM_FORMAT_S16_LE);
 	//
-	snd_pcm_hw_params_set_channels(handle, params, inf->NumChannels);
+	snd_pcm_hw_params_set_channels(thinf->handle, params, inf->NumChannels);
 	val = inf->SampleRate;
-	snd_pcm_hw_params_set_rate_near(handle, params, &val, &dir);
+	snd_pcm_hw_params_set_rate_near(thinf->handle, params, &val, &dir);
 	periodsize = 1024;
-	snd_pcm_hw_params_set_period_size(handle, params, periodsize, 0);
-	frames = periodsize << 1;
-	snd_pcm_hw_params_set_buffer_size(handle, params, frames);
-	if (snd_pcm_hw_params(handle, params) < 0)
+	snd_pcm_hw_params_set_period_size(thinf->handle, params, periodsize, 0);
+	thinf->frames = periodsize << 1;
+	snd_pcm_hw_params_set_buffer_size(thinf->handle, params, thinf->frames);
+	if (snd_pcm_hw_params(thinf->handle, params) < 0)
 		goto Failed;
-	//
-	tbuffer = new CRUINT8[frames * inf->BlockAlign];
-	if (!tbuffer)
-	{
-		snd_pcm_close(handle);
-		return CRERR_OUTOFMEM;
-	}
-	//
-	while (offs < CRStructureSize(dynPcm))
-	{
-		_fill_buffer_(tbuffer, dynPcm, frames, inf, &offs);
-		while (rc = snd_pcm_writei(handle, tbuffer, frames) < 0)
-		{
-			if (rc == -EPIPE)
-				snd_pcm_prepare(handle);
-		}
-	}
-	//
-	snd_pcm_drain(handle);
-	snd_pcm_close(handle);
 	snd_pcm_hw_params_free(params);
-	delete[] tbuffer;
-	return 0;
+	thinf->idThis = CRThread(_audio_thread_, thinf);
+	return thinf;
 Failed:
-	if (handle)
-		snd_pcm_close(handle);
+	if (thinf->handle)
+		snd_pcm_close(thinf->handle);
 	if (params)
 		snd_pcm_hw_params_free(params);
 	CRThrowError(CRERR_AUDIO_FAILEDALSA, CRDES_AUDIO_FAILEDALSA);
-	return CRERR_AUDIO_FAILEDALSA;
+	return nullptr;
 }
+
 #endif
+
+CRAPI CRCODE CRAudioClose(CRAUDIOPLAY play)
+{
+	AUTHRINF* pInner = (AUTHRINF*)play;
+	if (!pInner || pInner->magic != CR_AUDIOMAGIC)
+		return CRERR_INVALID;
+	pInner->stop = CRTRUE;
+	CRWaitThread(pInner->idThis);
+	delete pInner;
+	return 0;
+}
+
+CRAPI CRCODE CRAudioWait(CRAUDIOPLAY play)
+{
+	AUTHRINF* pInner = (AUTHRINF*)play;
+	if (!pInner || pInner->magic != CR_AUDIOMAGIC)
+		return CRERR_INVALID;
+	CRWaitThread(pInner->idThis);
+	delete pInner;
+	return 0;
+}
+
+CRAPI CRCODE CRAudioPause(CRAUDIOPLAY play)
+{
+	AUTHRINF* pInner = (AUTHRINF*)play;
+	if (!pInner || pInner->magic != CR_AUDIOMAGIC)
+		return CRERR_INVALID;
+	pInner->pause = CRTRUE;
+	return 0;
+}
+
+CRAPI CRCODE CRAudioStart(CRAUDIOPLAY play)
+{
+	AUTHRINF* pInner = (AUTHRINF*)play;
+	if (!pInner || pInner->magic != CR_AUDIOMAGIC)
+		return CRERR_INVALID;
+	pInner->pause = CRFALSE;
+	return 0;
+}

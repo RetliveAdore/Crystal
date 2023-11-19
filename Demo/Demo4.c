@@ -20,9 +20,20 @@ int Demo4(int argc, char** argv)
 	printf("声道数：%d\n", inf.NumChannels);
 	printf("位宽：%d\n", inf.BitsPerSample);
 	
-	code = CRAudioPlay(pcm, &inf);
-	if (code)
-		printf("error: %s\n", CRGetError(code));
+	CRAUDIOPLAY play = CRAudioBuffer(pcm, &inf);
+	if (!play)
+		printf("error: %s\n", CRGetError(0));
+	CRSleep(5000);
+	CRAudioPause(play);
+	CRSleep(1000);
+	CRAudioStart(play);
+	CRSleep(5000);
+	CRAudioPause(play);
+	CRSleep(1000);
+	CRAudioStart(play);
+	CRSleep(5000);
+
+	CRAudioClose(play);
 
 	CRFreeStructure(pcm, NULL);
 

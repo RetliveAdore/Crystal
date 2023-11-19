@@ -130,7 +130,7 @@ typedef struct
 	CRWWBLOCK whole;  //ChunkID is 'RIFF' or it`s wrong file
 	CRUINT32 format;  //'WAVE' or wrong data
 	//
-	CRWWBLOCK block2;  //ChunkID if 'fmt'
+	CRWWBLOCK block2;  //ChunkID is 'fmt '
 	CRWWINFO inf;
 	//
 	//...data...  //Search a chunk whose id is 'data', then you find the
