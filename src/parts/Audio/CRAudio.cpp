@@ -9,6 +9,12 @@
 #define PREFTIMES_PER_SEC 100000
 #define CR_AUDIOMAGIC (CRUINT8)0x57
 
+//这种管理模式是为了提高安全性采用的
+static CRSTRUCTURE audioPool = nullptr;
+static CRSTRUCTURE availableID = nullptr;
+static CRUINT64 currentID = 1;
+static CRBOOL inited = CRFALSE;
+
 #ifdef CR_WINDOWS
 #include <Windows.h>
 #include <audiopolicy.h>
@@ -21,50 +27,6 @@ const IID IID_IAudioClient = __uuidof(IAudioClient);
 const IID IID_IAudioRenderClient = __uuidof(IAudioRenderClient);
 
 IMMDeviceEnumerator* pEnumerator = NULL;
-
-#elif defined CR_LINUX
-#define ALSA_PCM_NEW_HW_PARAMS_API
-#include <alsa/asoundlib.h>
-#endif
-
-CRAPI CRCODE CRAudioInit()
-{
-	CRBasicInit();
-#ifdef CR_WINDOWS
-	HRESULT hr;
-	hr = CoInitializeEx(NULL, COINIT_SPEED_OVER_MEMORY | COINIT_MULTITHREADED);
-	if (FAILED(CoCreateInstance(CLSID_MMDeviceEnumerator,
-		NULL, CLSCTX_ALL, IID_IMMDeviceEnumerator,
-		(void**)&pEnumerator)))
-	{
-		CRThrowError(CRERR_AUDIO_FAILEDCOM, CRDES_AUDIO_FAILEDCOM);
-		return CRERR_AUDIO_FAILEDCOM;
-	}
-#elif defined CR_LINUX
-#endif
-	return 0;
-}
-
-CRAPI void CRAudioUnInit()
-{
-	CRBasicUninit();
-#ifdef CR_WINDOWS
-	if (pEnumerator)
-		pEnumerator->Release();
-	CoUninitialize();
-#elif defined CR_LINUX
-#endif
-}
-
-void _fill_buffer_(CRUINT8* Dst, CRSTRUCTURE Src, CRUINT32 frameCount, CRWWINFO* inf, CRUINT32* offs)
-{
-	CRUINT32 size = frameCount * inf->BlockAlign;
-	for (int i = 0; i < size; i++)
-		CRDynSeek(Src, (CRUINT8*)&Dst[i], *offs + i);
-	*offs += size;
-}
-
-#ifdef CR_WINDOWS
 
 typedef struct
 {
@@ -85,7 +47,118 @@ typedef struct
 	//symbols
 	CRBOOL stop = CRFALSE;
 	CRBOOL pause = CRFALSE;
+
+	CRBOOL stream;
 }AUTHRINF;
+
+#elif defined CR_LINUX
+#define ALSA_PCM_NEW_HW_PARAMS_API
+#include <alsa/asoundlib.h>
+
+static int alsa_can_pause = CRFALSE;
+
+typedef struct
+{
+	CRUINT8 magic = CR_AUDIOMAGIC;
+	snd_pcm_t* handle = nullptr;
+	snd_pcm_uframes_t frames = 0;
+
+	CRWWINFO* inf = nullptr;
+	CRSTRUCTURE dynPcm = nullptr;
+	CRUINT32 offs = 0;
+
+	CRTHREAD idThis = 0;
+	//symbols
+	CRBOOL stop = CRFALSE;
+	CRBOOL pause = CRFALSE;
+
+	CRBOOL stream;
+}AUTHRINF;
+
+#endif
+
+CRAPI CRCODE CRAudioInit()
+{
+	if (inited)
+		return 0;
+	CRCODE code = CRBasicInit();
+	if (code)
+		return code;
+	currentID = 1;
+	audioPool = CRTree();
+	if (!audioPool)
+		return CRERR_OUTOFMEM;
+	availableID = CRLinear();
+	if (!availableID)
+	{
+		CRFreeStructure(audioPool, NULL);
+		return CRERR_OUTOFMEM;
+	}
+	inited = CRTRUE;
+#ifdef CR_WINDOWS
+	HRESULT hr;
+	hr = CoInitializeEx(NULL, COINIT_SPEED_OVER_MEMORY | COINIT_MULTITHREADED);
+	if (FAILED(CoCreateInstance(CLSID_MMDeviceEnumerator,
+		NULL, CLSCTX_ALL, IID_IMMDeviceEnumerator,
+		(void**)&pEnumerator)))
+	{
+		CRThrowError(CRERR_AUDIO_FAILEDCOM, CRDES_AUDIO_FAILEDCOM);
+		return CRERR_AUDIO_FAILEDCOM;
+	}
+#elif defined CR_LINUX
+	snd_pcm_hw_params_t* params;
+	snd_pcm_hw_params_malloc(&params);
+	alsa_can_pause = snd_pcm_hw_params_can_pause(params);
+	snd_pcm_hw_params_free(params);
+#endif
+	return 0;
+}
+
+static void _clear_callback_(void* data)
+{
+	AUTHRINF* pInner = (AUTHRINF*)data;
+	pInner->stop = CRTRUE;
+	CRWaitThread(pInner->idThis);
+}
+
+CRAPI void CRAudioUnInit()
+{
+	CRFreeStructure(audioPool, _clear_callback_);
+	CRFreeStructure(availableID, NULL);
+	inited = CRFALSE;
+	audioPool = nullptr;
+	availableID = nullptr;
+	//
+	CRBasicUninit();
+#ifdef CR_WINDOWS
+	if (pEnumerator)
+		pEnumerator->Release();
+	CoUninitialize();
+#elif defined CR_LINUX
+#endif
+}
+
+void _fill_buffer_(CRUINT8* Dst, CRSTRUCTURE Src, CRUINT32 frameCount, CRWWINFO* inf, CRUINT32* offs)
+{
+	CRUINT32 size = frameCount * inf->BlockAlign;
+	for (int i = 0; i < size; i++)
+		CRDynSeek(Src, (CRUINT8*)&Dst[i], *offs + i);
+	*offs += size;
+	if (*offs > CRStructureSize(Src))
+		*offs = CRStructureSize(Src);
+}
+
+CRAUDIOPLAY _generate_id_(AUTHRINF* thinf)
+{
+	CRAUDIOPLAY id;
+	CRLinGet(availableID, &id, 0);
+	if (!id)
+		id = (CRAUDIOPLAY)currentID++;
+	CRTreePut(audioPool, thinf, (CRINT64)id);
+	return id;
+}
+
+#ifdef CR_WINDOWS
 
 void _audio_thread_(void* data, CRTHREAD idThis)
 {
@@ -200,7 +273,7 @@ CRAPI CRAUDIOPLAY CRAudioBuffer(CRSTRUCTURE dynPcm, CRWWINFO* inf)
 	thinf->idThis = CRThread(_audio_thread_, thinf);
 End:
 	CoTaskMemFree(pwfx);
-	return thinf;
+	return _generate_id_(thinf);
 Failed:
 	if (thinf->pDevice)
 		thinf->pDevice->Release();
@@ -216,22 +289,6 @@ Failed:
 
 #elif defined CR_LINUX
 
-typedef struct
-{
-	CRUINT8 magic = CR_AUDIOMAGIC;
-	snd_pcm_t* handle = nullptr;
-	snd_pcm_uframes_t frames = 0;
-
-	CRWWINFO* inf = nullptr;
-	CRSTRUCTURE dynPcm = nullptr;
-	CRUINT32 offs = 0;
-
-	CRTHREAD idThis = 0;
-	//symbols
-	CRBOOL stop = CRFALSE;
-	CRBOOL pause = CRFALSE;
-}AUTHRINF;
-
 void _audio_thread_(void* data, CRTHREAD idThis)
 {
 	AUTHRINF* auinf = (AUTHRINF*)data;
@@ -246,7 +303,10 @@ void _audio_thread_(void* data, CRTHREAD idThis)
 		{
 			if (auinf->pause)
 			{
-				snd_pcm_drop(auinf->handle);
+				if (alsa_can_pause)
+					snd_pcm_pause(auinf->handle, 1);
+				else
+					snd_pcm_drop(auinf->handle);
 				paused = CRTRUE;
 			}
 			else
@@ -263,9 +323,14 @@ void _audio_thread_(void* data, CRTHREAD idThis)
 		{
 			if (!auinf->pause)
 			{
-				snd_pcm_prepare(auinf->handle);
+				if (alsa_can_pause)
+					snd_pcm_pause(auinf->handle, 0);
+				else
+					snd_pcm_prepare(auinf->handle);
 				paused = CRFALSE;
 			}
+			else
+				CRSleep(1);
 		}
 	}
 	snd_pcm_drain(auinf->handle);
@@ -320,7 +385,7 @@ CRAPI CRAUDIOPLAY CRAudioBuffer(CRSTRUCTURE dynPcm, CRWWINFO* inf)
 		goto Failed;
 	snd_pcm_hw_params_free(params);
 	thinf->idThis = CRThread(_audio_thread_, thinf);
-	return thinf;
+	return _generate_id_(thinf);
 Failed:
 	if (thinf->handle)
 		snd_pcm_close(thinf->handle);
@@ -334,7 +399,8 @@ Failed:
 
 CRAPI CRCODE CRAudioClose(CRAUDIOPLAY play)
 {
-	AUTHRINF* pInner = (AUTHRINF*)play;
+	AUTHRINF* pInner = nullptr;
+	CRTreeGet(audioPool, (CRLVOID*)&pInner, (CRINT64)play);
 	if (!pInner || pInner->magic != CR_AUDIOMAGIC)
 		return CRERR_INVALID;
 	pInner->stop = CRTRUE;
@@ -345,7 +411,8 @@ CRAPI CRCODE CRAudioClose(CRAUDIOPLAY play)
 
 CRAPI CRCODE CRAudioWait(CRAUDIOPLAY play)
 {
-	AUTHRINF* pInner = (AUTHRINF*)play;
+	AUTHRINF* pInner = nullptr;
+	CRTreeGet(audioPool, (CRLVOID*)&pInner, (CRINT64)play);
 	if (!pInner || pInner->magic != CR_AUDIOMAGIC)
 		return CRERR_INVALID;
 	CRWaitThread(pInner->idThis);
@@ -355,18 +422,29 @@ CRAPI CRCODE CRAudioWait(CRAUDIOPLAY play)
 
 CRAPI CRCODE CRAudioPause(CRAUDIOPLAY play)
 {
-	AUTHRINF* pInner = (AUTHRINF*)play;
+	AUTHRINF* pInner = nullptr;
+	CRTreeSeek(audioPool, (CRLVOID*)&pInner, (CRINT64)play);
 	if (!pInner || pInner->magic != CR_AUDIOMAGIC)
 		return CRERR_INVALID;
 	pInner->pause = CRTRUE;
 	return 0;
 }
 
-CRAPI CRCODE CRAudioStart(CRAUDIOPLAY play)
+CRAPI CRCODE CRAudioResume(CRAUDIOPLAY play)
 {
-	AUTHRINF* pInner = (AUTHRINF*)play;
+	AUTHRINF* pInner = nullptr;
+	CRTreeSeek(audioPool, (CRLVOID*)&pInner, (CRINT64)play);
 	if (!pInner || pInner->magic != CR_AUDIOMAGIC)
 		return CRERR_INVALID;
 	pInner->pause = CRFALSE;
 	return 0;
+}
+
+CRAPI double CRAudioCheckProgress(CRAUDIOPLAY play)
+{
+	AUTHRINF* pInner = nullptr;
+	CRTreeSeek(audioPool, (CRLVOID*)&pInner, (CRINT64)play);
+	if (!pInner || pInner->magic != CR_AUDIOMAGIC)
+		return -1;
+	return (double)pInner->offs / (double)CRStructureSize(pInner->dynPcm);
 }

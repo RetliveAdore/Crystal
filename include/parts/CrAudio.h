@@ -28,9 +28,11 @@ CRAPI CRAUDIOPLAY CRAudioStream(CRWWINFO* inf, CRAudioStreamCbk);
 CRAPI CRCODE CRAudioClose(CRAUDIOPLAY play);
 /*如果想要等待音频播放完毕就使用这个API来释放*/
 CRAPI CRCODE CRAudioWait(CRAUDIOPLAY play);
+/*查询播放进度【1】：播放完毕 ; 【0】：刚刚开始播放 ; 【-1】：出错了*/
+CRAPI double CRAudioCheckProgress(CRAUDIOPLAY play);
 
 CRAPI CRCODE CRAudioPause(CRAUDIOPLAY play);
-CRAPI CRCODE CRAudioStart(CRAUDIOPLAY play);
+CRAPI CRCODE CRAudioResume(CRAUDIOPLAY play);
 
 #ifdef __cplusplus
 }

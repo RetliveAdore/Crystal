@@ -1,7 +1,7 @@
 ﻿#include "Demo.h"
 
-char command[128];
-CRUINT8 sub = 0;
+static char command[128];
+static CRUINT8 sub = 0;
 
 CRBOOL Compare(const char* str1, const char* str2)
 {
