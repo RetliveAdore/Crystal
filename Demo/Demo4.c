@@ -5,6 +5,9 @@
 
 static char command[128];
 static CRUINT8 sub = 0;
+static CRSTRUCTURE streamPcm = 0;
+static CRUINT32 streamOff = 0;
+static CRBOOL end = CRFALSE;
 
 static void ClearCommandD4()
 {
@@ -13,7 +16,7 @@ static void ClearCommandD4()
 
 static void GetCommandD4()
 {
-	printf("[p/pause;s/start;q/stop;g/progress]:");
+	printf("[p/pause;r/resume;q/stop;g/progress]:");
 	while (sub < 127)
 	{
 		command[sub] = getchar();
@@ -28,13 +31,23 @@ static void GetCommandD4()
 	sub = 0;
 }
 
+//标准的，官方的，可靠的，习惯性的...
+void Stream(CRUINT8* buffer, CRUINT32 frames, CRUINT32 size)
+{
+	for (int i = 0; i < size; i++)
+		CRDynSeek(streamPcm, (CRUINT8*)&buffer[i], streamOff + i);
+	streamOff += size;
+	if (streamOff > CRStructureSize(streamPcm))
+		end = CRTRUE;
+}
+
 static CRBOOL ProcessCommandD4(CRAUDIOPLAY play)
 {
 	if (!strlen(command))
 		return CRTRUE;
 	if (Compare(command, "p") || Compare(command, "pause"))
 		CRAudioPause(play);
-	else if (Compare(command, "s") || Compare(command, "start"))
+	else if (Compare(command, "r") || Compare(command, "resume"))
 		CRAudioResume(play);
 	else if (Compare(command, "q") || Compare(command, "stop"))
 		return CRFALSE;
@@ -73,8 +86,29 @@ int Demo4(int argc, char** argv)
 	//一定记得手动释放内存，虽然uninit时会自动释放，但是建议养成好习惯
 	CRAudioClose(play);
 
-	CRFreeStructure(pcm, NULL);
+	code = CRLoadWave("./resource/rick.wav", pcm, &inf);
+	if (code)
+		printf("Error: %s\n", CRGetError(code));
+	printf("采样率：%d\n", inf.SampleRate);
+	printf("声道数：%d\n", inf.NumChannels);
+	printf("位宽：%d\n", inf.BitsPerSample);
+	
+	streamPcm = pcm;
+	streamOff = 0;
+	end = CRFALSE;
+	play = CRAudioStream(&inf, Stream);
+	if (!play)
+		printf("error: %s\n", CRGetError(0));
+	while (!end)
+	{
+		ClearCommandD4();
+		GetCommandD4();
+		if (!ProcessCommandD4(play))
+			break;
+	}
+	CRAudioClose(play);
 
+	CRFreeStructure(pcm, NULL);
 	//uninit
 	CRAudioUnInit();
 	//

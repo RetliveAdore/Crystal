@@ -23,7 +23,7 @@ CRAPI void CRAudioUnInit();
 /*使用一整个buffer来直接播放完整音频*/
 CRAPI CRAUDIOPLAY CRAudioBuffer(CRSTRUCTURE dynPcm, CRWWINFO* inf);
 /*这个API更加具有应变性，可以用作直播流*/
-CRAPI CRAUDIOPLAY CRAudioStream(CRWWINFO* inf, CRAudioStreamCbk);
+CRAPI CRAUDIOPLAY CRAudioStream(CRWWINFO* inf, CRAudioStreamCbk func);
 /*在上面两个API调用成功之后需要用这个来关闭并释放内存*/
 CRAPI CRCODE CRAudioClose(CRAUDIOPLAY play);
 /*如果想要等待音频播放完毕就使用这个API来释放*/
