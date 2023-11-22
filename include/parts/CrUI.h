@@ -37,13 +37,13 @@ typedef struct
 	CRWINDOW window;
 	union
 	{
-		CRUINT64 x;
-		CRUINT64 w;
+		CRINT64 x;
+		CRINT64 w;
 	};
 	union
 	{
-		CRUINT64 y;
-		CRUINT64 h;
+		CRINT64 y;
+		CRINT64 h;
 	};
 	CRUINT8 keycode;
 	//CRUI_STAT_XX
@@ -65,7 +65,8 @@ typedef struct
 #define CRUI_SIZE_CB  5
 #define CRUI_MOVE_CB  6
 #define CALLBACK_FUNCS_NUM 7
-//这个被用于设置回调，方晶中的所有信息都被抽象为事件
+//这个被用于设置回调，引擎中的所有信息都被抽象为事件
+//返回非0值可以打断默认操作
 typedef CRCODE (*CRWindowCallback)(PCRUIMSG msg);
 
 #ifdef __cplusplus
@@ -79,9 +80,12 @@ CRAPI void CRUIUnInit();
 CRAPI CRCODE CRUIOnQuit();
 
 //不要让单次的任务太复杂
-//在方晶引擎中，每一个窗体都对应一个独立的线程
+//在引擎中，每一个窗体都对应一个独立的线程
 CRAPI CRWINDOW CRCreateWindow(const char* title, CRUINT32 x, CRUINT32 y, CRUINT32 w, CRUINT32 h);
 CRAPI CRCODE CRCloseWindow(CRWINDOW window);
+
+//引擎的UI反应是基于事件触发的，此API用于设置回调来响应事件
+CRAPI CRCODE CRSetWindowCbk(CRWINDOW window, CRWindowCallback func, CRUINT8 cbkID);
 
 #ifdef __cplusplus
 }

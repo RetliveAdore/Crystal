@@ -43,6 +43,7 @@ public:
 	void SetMinmax(CRUINT32 minx, CRUINT32 miny, CRUINT32 maxx, CRUINT32 maxy);
 	void follow(CRBOOL ifFollow);
 	CRBOOL follow_stat();
+	void setcbk(CRWindowCallback func, CRUINT8 cbkID);
 
 	/*
 	 * 下面的方法基本上是平台无关的，无需重写
@@ -90,6 +91,11 @@ void CRWindow::follow(CRBOOL ifFollow)
 CRBOOL CRWindow::follow_stat()
 {
 	return move;
+}
+
+void CRWindow::setcbk(CRWindowCallback func, CRUINT8 cbkID)
+{
+	funcs[cbkID] = func;
 }
 
 CRWINDOW CRWindow::GetID()
@@ -289,7 +295,7 @@ LRESULT AfterProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, CRWindowWin
 	CRUIMSG cbinfo;
 	cbinfo.window = pThis->GetID();
 	cbinfo.x = GET_X_LPARAM(lParam);
-	cbinfo.y = GET_Y_LPARAM(lParam);
+	cbinfo.y = GET_Y_LPARAM(lParam) - CRUI_TITLEBAR_PIXEL;
 	cbinfo.keycode = wParam & 0xff;
 	cbinfo.status = CRUI_STAT_OTHER;
 	if (msg == WM_CLOSE)
@@ -313,7 +319,7 @@ LRESULT AfterProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, CRWindowWin
 		// 绘制过程并不直接向外暴露，
 		// 用户通过添加实体对象并改其属性来控制画面
 		cbinfo.x = pThis->inf.w;
-		cbinfo.x = pThis->inf.h;
+		cbinfo.y = pThis->inf.h;
 		LRESULT ret = DefWindowProc(hWnd, msg, wParam, lParam);
 
 		pThis->inf.pgl->PaintAll();
@@ -324,13 +330,16 @@ LRESULT AfterProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, CRWindowWin
 	{
 		pThis->inf.x = cbinfo.x;
 		pThis->inf.y = cbinfo.y;
-		cbinfo.status = CRUI_STAT_MOVE;
-		pThis->funcs[CRUI_MOUSE_CB](&cbinfo);
+		if (cbinfo.y > 0)
+		{
+			cbinfo.status = CRUI_STAT_MOVE;
+			pThis->funcs[CRUI_MOUSE_CB](&cbinfo);
+		}
 		return 0;
 	}
 	case WM_SETCURSOR:
 	{
-		if (pThis->inf.y < CRUI_TITLEBAR_PIXEL && pThis->inf.x < CRUI_TITLEBAR_PIXEL)
+		if (pThis->inf.y < 0 && pThis->inf.x < CRUI_TITLEBAR_PIXEL)
 			SetCursor(LoadCursor(NULL, IDC_HAND));
 		else
 			SetCursor(LoadCursor(NULL, IDC_ARROW));
@@ -338,13 +347,13 @@ LRESULT AfterProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, CRWindowWin
 	}
 	case WM_LBUTTONDOWN:
 	{
-		if (cbinfo.h < CRUI_TITLEBAR_PIXEL)
+		if (cbinfo.h < 0)
 		{
 			if (cbinfo.x > CRUI_TITLEBAR_PIXEL * 3)
 			{
 				pThis->follow(CRTRUE);
 				pThis->inf.dx = cbinfo.x;
-				pThis->inf.dy = cbinfo.y;
+				pThis->inf.dy = cbinfo.y + CRUI_TITLEBAR_PIXEL;
 			}
 			else if (cbinfo.x > CRUI_TITLEBAR_PIXEL * 2)
 			{
@@ -366,7 +375,7 @@ LRESULT AfterProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, CRWindowWin
 	}
 	case WM_LBUTTONUP:
 	{
-		if (cbinfo.h < CRUI_TITLEBAR_PIXEL)
+		if (cbinfo.h < 0)
 		{
 			if (cbinfo.x > CRUI_TITLEBAR_PIXEL * 3)
 			{
@@ -392,13 +401,15 @@ LRESULT AfterProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, CRWindowWin
 	case WM_RBUTTONDOWN:
 	{
 		cbinfo.status = CRUI_STAT_DOWN | CRUI_STAT_RIGHT;
-		pThis->funcs[CRUI_MOUSE_CB](&cbinfo);
+		if (cbinfo.y > 0)
+			pThis->funcs[CRUI_MOUSE_CB](&cbinfo);
 		return 0;
 	}
 	case WM_RBUTTONUP:
 	{
 		cbinfo.status = CRUI_STAT_UP | CRUI_STAT_RIGHT;
-		pThis->funcs[CRUI_MOUSE_CB](&cbinfo);
+		if (cbinfo.y > 0)
+			pThis->funcs[CRUI_MOUSE_CB](&cbinfo);
 		return 0;
 	}
 	case WM_KEYDOWN:
@@ -707,7 +718,7 @@ void ProcessMsg(CRWINDOWINF *inf)
 		case ConfigureNotify: // 窗口改变大小
 		{
 			inf->w = event.xconfigure.width;
-			inf->h = event.xconfigure.height;
+			inf->h = event.xconfigure.height - CRUI_TITLEBAR_PIXEL;
 			cbinfo.x = event.xconfigure.width;
 			cbinfo.y = event.xconfigure.height;
 			inf->paint = CRTRUE;
@@ -718,29 +729,36 @@ void ProcessMsg(CRWINDOWINF *inf)
 			if (event.xbutton.x < CRUI_TITLEBAR_PIXEL && event.xbutton.y < CRUI_TITLEBAR_PIXEL)
 				XDefineCursor(pDisplay, inf->win, cursors[CR_X_CURSOR_HAND]);
 			else
-				XDefineCursor(pDisplay, inf->win, cursors[CR_X_CURSOR_DEFAULT]);
-			//
-			if (pWindow->follow_stat())
-				XMoveWindow(pDisplay, inf->win, event.xmotion.x_root - inf->dx, event.xmotion.y_root - inf->dy);
-			else
 			{
-				cbinfo.status = CRUI_STAT_MOVE;
-				cbinfo.x = event.xbutton.x;
-				cbinfo.y = event.xbutton.y;
-				inf->cbk[CRUI_MOUSE_CB](&cbinfo);
+				XDefineCursor(pDisplay, inf->win, cursors[CR_X_CURSOR_DEFAULT]);
+				//
+				if (pWindow->follow_stat())
+					XMoveWindow(pDisplay, inf->win, event.xmotion.x_root - inf->dx, event.xmotion.y_root - inf->dy);
+				else
+				{
+					cbinfo.status = CRUI_STAT_MOVE;
+					cbinfo.x = event.xbutton.x;
+					cbinfo.y = event.xbutton.y - CRUI_TITLEBAR_PIXEL;
+					inf->cbk[CRUI_MOUSE_CB](&cbinfo);
+				}
 			}
 			break;
 		}
 		case ButtonPress:
 		{
-			cbinfo.status = CRUI_STAT_DOWN;
-			if (event.xbutton.button == 1)
-				cbinfo.status |= CRUI_STAT_LEFT;
-			else if (event.xbutton.button == 3)
-				cbinfo.status |= CRUI_STAT_RIGHT;
+			
 			cbinfo.x = event.xbutton.x;
-			cbinfo.y = event.xbutton.y;
-			if (event.xbutton.button == 1 && cbinfo.h < CRUI_TITLEBAR_PIXEL)
+			cbinfo.y = event.xbutton.y - CRUI_TITLEBAR_PIXEL;
+			if (cbinfo.h > 0)
+			{
+				cbinfo.status = CRUI_STAT_DOWN;
+				if (event.xbutton.button == 1)
+					cbinfo.status |= CRUI_STAT_LEFT;
+				else if (event.xbutton.button == 3)
+					cbinfo.status |= CRUI_STAT_RIGHT;
+				inf->cbk[CRUI_MOUSE_CB](&cbinfo);
+			}
+			else if (event.xbutton.button == 1)
 			{
 				if (cbinfo.x > CRUI_TITLEBAR_PIXEL * 3)
 				{
@@ -757,13 +775,23 @@ void ProcessMsg(CRWINDOWINF *inf)
 				else
 					inf->preClose = CRTRUE;
 			}
-			else
-				inf->cbk[CRUI_MOUSE_CB](&cbinfo);
 			break;
 		}
 		case ButtonRelease:
 		{
-			if (event.xbutton.button == 1 && cbinfo.h < CRUI_TITLEBAR_PIXEL)
+			cbinfo.x = event.xbutton.x;
+			cbinfo.y = event.xbutton.y - CRUI_TITLEBAR_PIXEL;
+			if (cbinfo.y > 0)
+			{
+				cbinfo.status = CRUI_STAT_UP;
+				inf->preClose = CRFALSE;
+				if (event.xbutton.button == 1)
+					cbinfo.status |= CRUI_STAT_LEFT;
+				else if (event.xbutton.button == 3)
+					cbinfo.status |= CRUI_STAT_RIGHT;
+				inf->cbk[CRUI_MOUSE_CB](&cbinfo);
+			}
+			else if (event.xbutton.button == 1)
 			{
 				if (cbinfo.x > CRUI_TITLEBAR_PIXEL * 3)
 				{
@@ -776,20 +804,8 @@ void ProcessMsg(CRWINDOWINF *inf)
 				}
 				else if (inf->preClose)
 					pWindow->clear();
-			}
-			else
-			{
-				if (event.xbutton.button == 1)
-					cbinfo.status |= CRUI_STAT_LEFT;
-				else if (event.xbutton.button == 3)
-					cbinfo.status |= CRUI_STAT_RIGHT;
-				cbinfo.x = event.xbutton.x;
-				cbinfo.y = event.xbutton.y;
 				pWindow->follow(CRFALSE);
-				inf->cbk[CRUI_MOUSE_CB](&cbinfo);
 			}
-			cbinfo.status = CRUI_STAT_UP;
-			inf->preClose = CRFALSE;
 			break;
 		}
 		case KeyPress:
@@ -934,6 +950,7 @@ void _paint_thread_(CRLVOID data, CRTHREAD idThis)
 
 	//一定要确保创建和绘制都在同一个线程
 	inf->pgl = new ccl_gl(pDisplay, inf->vi, inf->win);
+	inf->pgl->Resize(inf->w, inf->h);
 
 	CRTIMER timer = CRTimer();
 	CRTimerMark(timer);
@@ -1025,5 +1042,17 @@ CRAPI CRCODE CRCloseWindow(CRWINDOW window)
 	if (!pWindow)
 		return CRERR_INVALID;
 	pWindow->clear();
+	return 0;
+}
+
+CRAPI CRCODE CRSetWindowCbk(CRWINDOW window, CRWindowCallback func, CRUINT8 cbkID)
+{
+	CRWindow* pWindow = NULL;
+	if (cbkID >= CALLBACK_FUNCS_NUM || !func)
+		return CRERR_INVALID;
+	CRTreeSeek(windowPool, (CRLVOID*)&pWindow, window);
+	if (!pWindow)
+		return CRERR_INVALID;
+	pWindow->setcbk(func, cbkID);
 	return 0;
 }

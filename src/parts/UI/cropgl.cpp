@@ -161,8 +161,12 @@ void DrawDemo()
     color.g = 0.9f;
     color.b = 1.0f;
     color.a = 0.3;
-    DrawPoint(40.0f, 30.0f, 1.0f, 3.0f, &color);
-    DrawRect(30.0f, -10.0f, 20.0f, 50.0f, 3.0f, 5.0f, &color);
+    DrawPoint(40.0f, 30.0f, 1.0f, 10.0f, &color);
+    color.r = 1.0f;
+    color.g = 0.0f;
+    color.b = 0.0f;
+    color.a = 1.0;
+    DrawRect(100.0f, -100.0f, -100.0f, 100.0f, 3.0f, 5.0f, &color);
     color.r = 1.0f;
     color.g = 1.0f;
     color.b = 1.0f;
@@ -280,28 +284,33 @@ void _fill_port_(float r, float g, float b)
     glEnd();
 }
 
+void _draw_titlebar_(CRINT32 _w, CRINT32 _h)
+{
+    glLoadIdentity();
+    glOrtho(-1.0f, 1.0f, -1.0f, 1.0f, 1.0f, -1.0f);
+    //标题栏底色
+    glViewport(0, _h, _w, CRUI_TITLEBAR_PIXEL);
+    _fill_port_(0.2, 0.3, 0.35);
+    //三个按钮
+    glViewport(CRUI_TITLEBAR_PIXEL / 4, _h + CRUI_TITLEBAR_PIXEL / 4, CRUI_TITLEBAR_PIXEL / 2, CRUI_TITLEBAR_PIXEL / 2);
+    _fill_port_(0.95, 0.45, 0.55);
+    //
+    glViewport(CRUI_TITLEBAR_PIXEL + CRUI_TITLEBAR_PIXEL / 4, _h + CRUI_TITLEBAR_PIXEL / 4, CRUI_TITLEBAR_PIXEL / 2, CRUI_TITLEBAR_PIXEL / 2);
+    _fill_port_(0.55, 0.9, 0.55);
+    //
+    glViewport(CRUI_TITLEBAR_PIXEL * 2 + CRUI_TITLEBAR_PIXEL / 4, _h + CRUI_TITLEBAR_PIXEL / 4, CRUI_TITLEBAR_PIXEL / 2, CRUI_TITLEBAR_PIXEL / 2);
+    _fill_port_(0.6, 0.65, 1.0);
+    //
+}
+
 void ccl_gl::PaintAll()
 {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     //
-    glLoadIdentity();
-    glOrtho(-1.0f, 1.0f, -1.0f, 1.0f, 1.0f, -1.0f);
-    //标题栏底色
-    glViewport(0, _h - CRUI_TITLEBAR_PIXEL, _w, CRUI_TITLEBAR_PIXEL);
-    _fill_port_(0.2, 0.3, 0.35);
-    //三个按钮
-    glViewport(CRUI_TITLEBAR_PIXEL / 4, _h - CRUI_TITLEBAR_PIXEL / 4 * 3, CRUI_TITLEBAR_PIXEL / 2, CRUI_TITLEBAR_PIXEL / 2);
-    _fill_port_(0.95, 0.45, 0.55);
-    //
-    glViewport(CRUI_TITLEBAR_PIXEL + CRUI_TITLEBAR_PIXEL / 4, _h - CRUI_TITLEBAR_PIXEL / 4 * 3, CRUI_TITLEBAR_PIXEL / 2, CRUI_TITLEBAR_PIXEL / 2);
-    _fill_port_(0.55, 0.9, 0.55);
-    //
-    glViewport(CRUI_TITLEBAR_PIXEL * 2 + CRUI_TITLEBAR_PIXEL / 4, _h - CRUI_TITLEBAR_PIXEL / 4 * 3, CRUI_TITLEBAR_PIXEL / 2, CRUI_TITLEBAR_PIXEL / 2);
-    _fill_port_(0.6, 0.65, 1.0);
-    //
+    _draw_titlebar_(_w, _h);
     Resize(_w, _h);
     //
-    //DrawDemo();
+    DrawDemo();
 #ifdef CR_WINDOWS
     SwapBuffers(_hDc);
 #elif defined CR_LINUX
@@ -312,14 +321,14 @@ void ccl_gl::PaintAll()
 void ccl_gl::Resize(CRUINT32 x, CRUINT32 y)
 {
     _w = x, _h = y;
-    glViewport(0, 0, x, y - CRUI_TITLEBAR_PIXEL);
+    glViewport(0, 0, x, y);
     glLoadIdentity();
     if (x > y)
     {
-        glOrtho(-100.0f * x / (y - CRUI_TITLEBAR_PIXEL), 100.0f * x / (y - CRUI_TITLEBAR_PIXEL), -100.0f, 100.0f, 10.0f, -1000.0f);
+        glOrtho(-100.0f * x / y, 100.0f * x / y, -100.0f, 100.0f, 10.0f, -1000.0f);
     }
     else
     {
-        glOrtho(-100.0f, 100.0f, -100.0f * (y - CRUI_TITLEBAR_PIXEL) / x, 100.0f * (y - CRUI_TITLEBAR_PIXEL) / x, 10.0f, -1000.0f);
+        glOrtho(-100.0f, 100.0f, -100.0f * y / x, 100.0f * y / x, 10.0f, -1000.0f);
     }
 }

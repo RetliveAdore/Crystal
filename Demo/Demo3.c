@@ -2,6 +2,12 @@
 #include <parts/CrUI.h>
 #include <parts/Crbasic.h>
 
+CRCODE MouseEvent(PCRUIMSG msg)
+{
+	if (msg->status & CRUI_STAT_DOWN)
+		printf("mouse button down: %d, %d\n", msg->x, msg->y);
+}
+
 int Demo3(int argc, char** argv)
 {
 	CRCODE code = 0;
@@ -12,6 +18,9 @@ int Demo3(int argc, char** argv)
 	}
 	CRWINDOW window1 = CRCreateWindow("Demo1", CRWINDOW_USEDEFAULT, CRWINDOW_USEDEFAULT, 600, 400);
 	if (!window1)
+		printf("error: %s\n", CRGetError(0));
+
+	if (code = CRSetWindowCbk(window1, MouseEvent, CRUI_MOUSE_CB))
 		printf("error: %s\n", CRGetError(0));
 
 	while (CRUIOnQuit()) CRSleep(1);

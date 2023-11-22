@@ -54,7 +54,7 @@ private:
     //OpenGL的环境
     HGLRC _hRc;
 
-    CRUINT32 _w, _h;
+    CRINT32 _w, _h;
     CRUINT32 CurrentID = 1;
     CRBOOL _lock;
 
