@@ -26,6 +26,11 @@ file(GLOB_RECURSE Dynextra_Files
 "./src/parts/dynextra/*.*"
 )
 
+file(GLOB_RECURSE Treextra_Files
+"./include/*.*"
+"./src/parts/treextra/*.*"
+)
+
 file(GLOB_RECURSE Basic_Files
 "./include/*.*"
 "./src/parts/basic/*.*"
@@ -61,11 +66,12 @@ add_custom_target("CopyTask"
 
 add_library("Crystal" SHARED ${Crystal_Files})
 add_library("Crdynextra" SHARED ${Dynextra_Files})
+add_library("Crtreextra" SHARED ${Treextra_Files})
 add_library("Crbasic" SHARED ${Basic_Files})
 add_library("Crbinary" SHARED ${Binary_Files})
 add_library("CrUI" SHARED ${CrUI_Files})
 add_library("CrAudio" SHARED ${CrAudio_Files})
-add_compile_definitions("Crystal" CR_SHARED_LIB CR_BUILD_DLL)
+add_compile_definitions(CR_SHARED_LIB CR_BUILD_DLL)
 
 #这里面会有很多用于验证的演示
 add_executable("Demo" ${Demo_Files})
@@ -73,13 +79,18 @@ add_executable("Demo" ${Demo_Files})
 #添加库依赖
 target_link_libraries("Demo" Crystal Crdynextra Crbasic Crbinary CrUI CrAudio)
 target_link_libraries("Crdynextra" Crystal)
+target_link_libraries("Crtreextra" Crystal)
 target_link_libraries("Crbasic" Crystal)
 target_link_libraries("Crbinary" Crystal Crdynextra)
 target_link_libraries("CrUI" Crystal Crbasic)
 target_link_libraries("CrAudio" Crystal Crbasic)
 
-add_dependencies("Demo" "CopyTask" "Crystal" "Crbasic" "Crbinary" "CrUI" "CrAudio")
+add_dependencies("Demo"
+  "CopyTask" "Crystal" "Crbasic"
+  "Crbinary" "CrUI" "CrAudio"
+)
 add_dependencies("Crdynextra" "Crystal")
+add_dependencies("Crtreextra" "Crystal")
 add_dependencies("Crbasic" "Crystal")
 add_dependencies("Crbinary" "Crystal" "Crdynextra")
 add_dependencies("CrUI" "Crystal" "Crbasic")
@@ -89,6 +100,7 @@ if(MSVC)
   set_property(TARGET "Demo" PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
   set_property(TARGET "Crystal" PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
   set_property(TARGET "Crdynextra" PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+  set_property(TARGET "Crtreextra" PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
   set_property(TARGET "Crbasic" PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
   set_property(TARGET "Crbinary" PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
   set_property(TARGET "CrUI" PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")

@@ -25,7 +25,7 @@ typedef union
 #define CRV_MAJOR 0
 #define CRV_MINOR 0
 #define CRV_BUILD 8   //每次完成相对完整的功能都要记得至少把build版本加一
-#define CRV_REVIS 0   //这个几乎可以随便写，但是只能变大不准减小
+#define CRV_REVIS 1   //这个几乎可以随便写，但是只能变大不准减小
 
 #define CRERR_FINE      0
 #define CRERR_UNINITED  1

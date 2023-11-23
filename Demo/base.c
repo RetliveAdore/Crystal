@@ -1,4 +1,6 @@
 ﻿#include "Demo.h"
+#include <parts/CrAudio.h>
+#include <parts/Crbinary.h>
 
 static char command[128];
 static CRUINT8 sub = 0;
@@ -52,6 +54,19 @@ CRBOOL ProcessCommand(int argc, char** argv)
 		printf("返回值：%d\n\n", Demo3(argc, argv));
 	else if (Compare(command, "Demo4"))
 		printf("返回值：%d\n\n", Demo4(argc, argv));
+	else if (Compare(command, "City"))
+	{
+		CRAudioInit();
+		printf("你是否有点过于城市化了？\n");
+		CRSTRUCTURE pcm = CRDynamic();
+		CRWWINFO inf;
+		if (CRLoadWave("./resource/极端小曲.wav", pcm, &inf))
+			printf("极端不起来q_q\n");
+		CRAUDIOPLAY city = CRAudioBuffer(pcm, &inf);
+		CRAudioWait(city);
+		CRFreeStructure(pcm, NULL);
+		CRAudioUnInit();
+	}
 	else
 		printf("invalid command: %s\n", command);
 	return CRTRUE;
