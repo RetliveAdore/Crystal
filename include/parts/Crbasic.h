@@ -6,8 +6,11 @@
 typedef CRLVOID CRTIMER;
 typedef CRLVOID CRTHREAD;
 typedef CRLVOID CRLOCK;
+typedef CRLVOID CRINET;  //之所以把网络部分放到这里，是因为现在网络太重要了，足以集成到核心
 
 typedef void (*CRThreadFunction)(CRLVOID userdata, CRTHREAD idThis);
+/*此回调函数用于设置接收到数据之后的处理动作*/
+typedef void (*CRInetFunction)();
 
 #ifdef __cplusplus
 extern "C" {
@@ -54,6 +57,17 @@ CRAPI void CRUnlock(CRLOCK lock);  //无论锁的状态，立刻解锁
 * 文件映射到内存之后使用动态数组的接口来操作，
 * 操作部分的实现将会在Cryatal数据结构核心之中
 */
+
+//
+
+/*
+* 现代人没人不上网吧？
+* 网络集成必须有
+*/
+
+CRAPI CRINET CRServerInet(CRUINT16 port);
+CRAPI CRINET CRClientInet(const char* address, CRUINT16 port);
+CRAPI CRCODE CRCloseInet(CRINET inet);
 
 #ifdef __cplusplus
 }

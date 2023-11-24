@@ -7,7 +7,7 @@
 * 编码由小到大依次排列，先到先得
 */
 #define CRERR_STRUCTURE_RESIZE 1001
-#define CRDES_STRUCTURE_RESIZE "failed to resize -> realloc() <-, in crystal structure"
+#define CRDES_STRUCTURE_RESIZE "failed to resize ->realloc()<-, in crystal structure"
 
 #define CRERR_STRUCTURE_FULL 1002
 #define CRDES_STRUCTURE_FULL "failed to extend dynamic array's space, size limited to 512MB"
@@ -38,5 +38,14 @@
 
 #define CRERR_AUDIO_FAILEDALSA 1011
 #define CRDES_AUDIO_FAILEDALSA "error ALSA platform Linux"
+
+#define CRERR_BASIC_FAILEDINET 1012
+#define CRDES_BASIC_FAILEDINET "error ->WSAStartup<- platform Windows"
+
+#define CRERR_BASIC_INETBIND 1013
+#define CRDES_BASIC_INETBIND "failed to bind socket address"
+
+#define CRERR_BASIC_INETCREATE 1014
+#define CRDES_BASIC_INETCREATE "failed create socket"
 
 #endif  //include

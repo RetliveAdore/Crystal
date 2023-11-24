@@ -5,7 +5,7 @@
 // 全局变量
 static CRSTRUCTURE windowPool = nullptr;	  // tree
 static CRSTRUCTURE availableID = nullptr; // queue
-static CRUINT64 CurrentID = 1;
+static CRUINT64 CurrentIDthread = 1;
 static CRBOOL inited = CRFALSE;
 static CRBOOL wndclass = CRFALSE;
 // 什么也不做，仅用于防止空指针
@@ -531,7 +531,7 @@ CRAPI CRCODE CRUIInit()
 	{
 		windowPool = CRTree();
 		availableID = CRLinear();
-		CurrentID = 1;
+		CurrentIDthread = 1;
 		regist_class();
 		inited = CRTRUE;
 	}
@@ -558,7 +558,7 @@ CRAPI CRWINDOW CRCreateWindow(const char* title, CRUINT32 x, CRUINT32 y, CRUINT3
 	CRWINDOW id;
 	CRLinGet(availableID, (CRLVOID*)&id, 0);
 	if (!id)
-		id = CurrentID++;
+		id = CurrentIDthread++;
 	CRWindow* pWindow = new CRWindowWindows(title, w, h, x, y);
 	if (!pWindow)
 	{

@@ -107,6 +107,7 @@ CRAPI CRBOOL CRThrowError(CRCODE errcode, const char* description)
 		LeaveCriticalSection(&cs);
 		return CRFALSE;
 	}
+	errNow = description;
 	if (errcode > 0 && errcode <= 1000 && errcode < CRERR_MAXCODE)
 		errNow = errs[errcode];
 	else

@@ -2,9 +2,9 @@
 #include <parts/Crbasic.h>
 #include <malloc.h>
 
-extern CRUINT64 CurrentID;
+extern CRUINT64 CurrentIDthread;
 extern CRSTRUCTURE threadTree;
-extern CRSTRUCTURE availableIDs;
+extern CRSTRUCTURE availableIDthread;
 
 #ifdef CR_WINDOWS
 #include <Windows.h>
@@ -53,7 +53,7 @@ void* _thread_inner_(void* lp)
 	PCRTHREADINNER pInner = lp;
 	pInner->func(pInner->userData, pInner->threadID);
 	CRTreeGet(threadTree, NULL, (CRUINT64)(pInner->threadID));
-	CRLinPut(availableIDs, pInner->threadID, 0);
+	CRLinPut(availableIDthread, pInner->threadID, 0);
 	free(pInner);
 	return 0;
 }
@@ -65,7 +65,7 @@ CRAPI CRTHREAD CRThread(CRThreadFunction func, CRLVOID userData)
 		CRThrowError(CRERR_INVALID, NULL);
 		return 0;
 	}
-	if (!threadTree || !availableIDs)
+	if (!threadTree || !availableIDthread)
 	{
 		CRThrowError(CRERR_UNINITED, NULL);
 		return 0;
@@ -76,8 +76,8 @@ CRAPI CRTHREAD CRThread(CRThreadFunction func, CRLVOID userData)
 		CRThrowError(CRERR_OUTOFMEM, NULL);
 		return 0;
 	}
-	if (CRLinGet(availableIDs, &(pInner->threadID), 0))
-		pInner->threadID = (CRTHREAD)CurrentID++;
+	if (CRLinGet(availableIDthread, &(pInner->threadID), 0))
+		pInner->threadID = (CRTHREAD)CurrentIDthread++;
 	pInner->func = func;
 	pInner->userData = userData;
 	CRTreePut(threadTree, pInner, (CRUINT64)(pInner->threadID));
