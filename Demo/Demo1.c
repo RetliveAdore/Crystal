@@ -2,57 +2,105 @@
 #include <parts/Crbasic.h>
 #include <stdio.h>
 
-#define THREAD_NUM 100
-#define REPEAT_NUM 100
+#define DEMO_PORT 24600
+#define CHECK_ERROR(code) if (code) printf("error: %s\n", CRGetError(code))
 
-static int num = 0, cal = 0;
+CRBOOL connected = CRFALSE;
+char* cmd[128];
+CRUINT8 sub = 0;
+CRINET inet = 0;
 
-CRLOCK lock = NULL;
-
-void threadfunc1(CRLVOID data, CRTHREAD idThis)
+static void GetCmdStr()
 {
-	CRLock(lock);
-	num += 1;
-	CRUnlock(lock);
+	printf("[type port <address>]:\n");
+	while (sub < 127)
+	{
+		cmd[sub++] = getchar();
+		if (cmd[sub] == '\n')
+		{
+			cmd[sub] = '\0';
+			sub = 0;
+			break;
+		}
+	}
+	//split
+	CRUINT8 head = 0;
+	CRUINT8 len = 0;
+	for (int i = 0; i < strlen(cmd); i++)
+	{
+	}
+}
+
+/*将字符串转化为数字 */
+static CRUINT16 eval(const char* strNum)
+{
+	CRUINT8 len = strlen(strNum);
+	if (len > 5)
+		return 0;
+	CRUINT16 base = 1;
+	CRUINT16 ret = 0;
+	for (; len > 0; len--)
+		base *= 10;
+	int i = 0;
+	while (base >= 1)
+	{
+		ret += (strNum[i++] - '0') * base;
+		if (strNum[i] < '0' || strNum[i] > '9')
+			return 0;
+		base /= 10;
+	}
+	return ret;
+}
+
+void process(CRINET inet)
+{
+	printf("connected\n");
+	connected = CRTRUE;
+}
+
+int server(CRUINT16 port)
+{
+	CRCODE code = 0;
+	inet = CRServerInet(process, DEMO_PORT);
+	if (!server)
+		printf("error: %s\n", CRGetError(0));
+
+	return 0;
+}
+
+int client(const char* addr, CRUINT16 port)
+{
+	CRCODE code = 0;
+	inet = CRClientInet("127.0.0.1", DEMO_PORT, 5);
+	if (!client)
+		printf("error: %s\n", CRGetError(0));
+
+	return 0;
 }
 
 int Demo1(int argc, char** argv)
 {
-	CRCODE err = 0;
+	CRCODE code =
 	CRBasicInit();
-
-	lock = CRLockCreate();
-	if (!lock)
-		goto End;
-
-	num = 0;
-
-	printf("计时器启动...\n");
-	CRTIMER timer = CRTimer();
-	if (!CRTimerMark(timer))
-		printf("报错：%s\n", CRGetError(0));
-
-	CRTHREAD pool[THREAD_NUM];
-
-	for (int j = 0; j < REPEAT_NUM; j++)
+	CHECK_ERROR(code);
+	char symbol = getchar();
+	if (symbol == 's')
 	{
-		for (int i = 0; i < THREAD_NUM; i++)
-			pool[i] = CRThread(threadfunc1, NULL);
-		for (int i = 0; i < THREAD_NUM; i++)
-			CRWaitThread(pool[i]);
+		printf("server\n");
+		server(DEMO_PORT);
 	}
-
-	printf("开启了%d个线程，每一个线程给num加一，结果：num = %d\n", THREAD_NUM * REPEAT_NUM, num);
-	double tm = CRTimerMark(timer);
-	printf("执行了%.7f秒\n", tm);
-	if (err = CRTimerClose(timer))
+	else if (symbol == 'c')
 	{
-		printf("报错:%s\n", CRGetError(err));
-		return 1;
+		printf("client\n");
+		client("127.0.0.1", DEMO_PORT);
+		connected = CRTRUE;
 	}
-
-End:
-	CRLockRelease(lock);
+	else goto Failed;
+	while (!connected)
+		CRSleep(1);
+	code = CRCloseInet(inet);
+	CHECK_ERROR(code);
+Failed:
 	CRBasicUninit();
 	return 0;
 }

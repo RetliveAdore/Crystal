@@ -25,7 +25,7 @@ typedef union
 #define CRV_MAJOR 0
 #define CRV_MINOR 0
 #define CRV_BUILD 8   //每次完成相对完整的功能都要记得至少把build版本加一
-#define CRV_REVIS 2   //这个几乎可以随便写，但是只能变大不准减小
+#define CRV_REVIS 3   //这个几乎可以随便写，但是只能变大不准减小
 
 #define CRERR_FINE      0
 #define CRERR_UNINITED  1
@@ -70,13 +70,13 @@ CRAPI const CRVERSION* CRVer();
 /*
 传入的错误代码不要小于1000
 假如没有将crystal初始化，将返回CRFALSE
-假如传入的错误代码是内置代码，将会使其更新为默认错误
+传入的最后一个错误代码将会使其更新为默认错误
 重复投送相同的错误代码，后来者将会覆盖之前的description
 */
 CRAPI CRBOOL CRThrowError(CRCODE errcode, const char* desc);
 /*
-传入0默认查询当前发生的错误
-假如查询不到错误或者没有错误，将固定返回Fine，查询之后将移除该错误
+传入0查询当前发生的默认错误
+假如查询不到错误或者没有错误，将固定返回Fine，查询之后将移除查询到的错误
 */
 CRAPI const char* CRGetError(CRCODE errcode);
 

@@ -6,6 +6,7 @@
 * 所有错误代码均大于1000（有符号32位整数）（CRCODE）
 * 编码由小到大依次排列，先到先得
 */
+
 #define CRERR_STRUCTURE_RESIZE 1001
 #define CRDES_STRUCTURE_RESIZE "failed to resize ->realloc()<-, in crystal structure"
 
@@ -47,5 +48,17 @@
 
 #define CRERR_BASIC_INETCREATE 1014
 #define CRDES_BASIC_INETCREATE "failed create socket"
+
+#define CRERR_BASIC_INETIOCTL 1015
+#define CRDES_BASIC_INETIOCTL "error in ->ioctlsocket<-"
+
+#define CRERR_BASIC_LISTENING 1016
+#define CRDES_BASIC_LISTENING "socket failed listening, check your port occupier"
+
+#define CRERR_BASIC_CONNECT 1017
+#define CRDES_BASIC_CONNECT "connecting to server failed"
+
+#define CRERR_BASIC_TIMEOUT 1018
+#define CRDES_BASIC_TIMEOUT "server reply out of time"
 
 #endif  //include

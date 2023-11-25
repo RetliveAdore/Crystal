@@ -1,6 +1,4 @@
-﻿#include <Crystal.h>
-#include <parts/Crbasic.h>
-#include <crerrors.h>
+﻿#include "basicheader.h"
 
 CRLVOID CurrentIDthread = (CRLVOID)1;
 CRSTRUCTURE threadTree = NULL;
@@ -11,12 +9,6 @@ CRSTRUCTURE socketTree = NULL;
 CRSTRUCTURE availableIDsocket = NULL;
 
 #ifdef CR_WINDOWS
-#include <Windows.h>
-#pragma comment(lib, "winmm.lib")
-
-#include <WinSock2.h>
-#pragma comment(lib, "ws2_32.lib")
-
 LARGE_INTEGER frequency = { 0 };
 LARGE_INTEGER count = { 0 };
 
@@ -68,15 +60,23 @@ CRAPI CRCODE CRBasicInit()
 	return 0;
 }
 
+extern void _inet_clear_callback_(CRLVOID* data);
+
 CRAPI void CRBasicUninit()
 {
 	if (!crInitedBasic)
 		return;
-	CRFreeStructure(threadTree, NULL);
+	CRFreeStructure(threadTree, NULL);  //thread比较特殊，内存释放是由子线程自己负责的，所以说传入NULL
 	threadTree = NULL;
 	CRFreeStructure(availableIDthread, NULL);
 	availableIDthread = NULL;
 	CurrentIDthread = (CRLVOID)1;
+	//
+	CRFreeStructure(socketTree, _inet_clear_callback_);
+	socketTree = NULL;
+	CRFreeStructure(availableIDsocket, NULL);
+	availableIDsocket = NULL;
+	CurrentIDsocket = (CRLVOID)1;
 #ifdef CR_WINDOWS
 	WSACleanup();
 #endif

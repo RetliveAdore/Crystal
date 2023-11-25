@@ -10,7 +10,7 @@ typedef CRLVOID CRINET;  //之所以把网络部分放到这里，是因为现�
 
 typedef void (*CRThreadFunction)(CRLVOID userdata, CRTHREAD idThis);
 /*此回调函数用于设置接收到数据之后的处理动作*/
-typedef void (*CRInetFunction)();
+typedef void (*CRInetFunction)(CRINET inet);
 
 #ifdef __cplusplus
 extern "C" {
@@ -65,8 +65,8 @@ CRAPI void CRUnlock(CRLOCK lock);  //无论锁的状态，立刻解锁
 * 网络集成必须有
 */
 
-CRAPI CRINET CRServerInet(CRUINT16 port);
-CRAPI CRINET CRClientInet(const char* address, CRUINT16 port);
+CRAPI CRINET CRServerInet(CRInetFunction func, CRUINT16 port);
+CRAPI CRINET CRClientInet(const char* address, CRUINT16 port, CRUINT16 timeoutSecond);
 CRAPI CRCODE CRCloseInet(CRINET inet);
 
 #ifdef __cplusplus
