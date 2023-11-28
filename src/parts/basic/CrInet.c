@@ -13,7 +13,7 @@ typedef struct
 #ifdef CR_WINDOWS
 	SOCKET soc;
 #elif defined CR_LINUX
-	int socket;
+	int soc;
 #endif
 	CRINET id;
 	CRUINT8 type;
@@ -33,12 +33,12 @@ void _server_process_(CRLVOID data, CRTHREAD idThis)
 	CRINET id = 0;
 	CRLinGet(availableIDsocket, &id, 0);
 	if (!id)
-		id = CurrentIDsocket++;
-	CRTreePut(socketTree, pInf->pInner, id);
+		id = (CRINET)CurrentIDsocket++;
+	CRTreePut(socketTree, pInf->pInner, (CRUINT64)id);
 	//
 	pInf->process(id);
 	//
-	CRTreeGet(socketTree, NULL, id);
+	CRTreeGet(socketTree, NULL, (CRUINT64)id);
 	CRLinPut(availableIDsocket, id, 0);
 	//
 	closesocket(pInf->pInner->soc);
@@ -47,9 +47,9 @@ void _server_process_(CRLVOID data, CRTHREAD idThis)
 }
 
 //第二棒
-void _server_thread_(CRLVOID* data, CRTHREAD idThis)
+void _server_thread_(CRLVOID data, CRTHREAD idThis)
 {
-	struct serverProcessInf* pInf = data;
+	struct serverProcessInf* pInf = (struct serverProcessInf*)data;
 	fd_set rdfs;
 	fd_set rdfs_bk;
 	FD_ZERO(&rdfs);
@@ -84,7 +84,7 @@ void _server_thread_(CRLVOID* data, CRTHREAD idThis)
 		}
 	}
 	closesocket(pInf->pInner->soc);
-	CRTreeGet(socketTree, NULL, pInf->pInner->id);
+	CRTreeGet(socketTree, NULL, (CRUINT64)pInf->pInner->id);
 	CRLinPut(availableIDsocket, pInf->pInner->id, 0);
 	//上一棒交接的内存，需要释放（close并不会释放type为server的内存
 	free(pInf->pInner);
@@ -115,17 +115,27 @@ CRAPI CRINET CRServerInet(CRInetFunction func, CRUINT16 port)
 		CRThrowError(CRERR_BASIC_INETCREATE, CRDES_BASIC_INETCREATE);
 		goto Failed;
 	}
+	SOCKADDR_IN addr_in;
+	addr_in.sin_family = AF_INET;
+	addr_in.sin_port = htons(port);
 	//使用非阻塞式的
+#ifdef CR_WINDOWS
 	int imod = 1;
 	if (ioctlsocket(pInner->soc, FIONBIO, (u_long*)&imod) == SOCKET_ERROR)
 	{
 		CRThrowError(CRERR_BASIC_INETIOCTL, CRDES_BASIC_INETIOCTL);
 		goto Failed;
 	}
-	SOCKADDR_IN addr_in;
 	addr_in.sin_addr.S_un.S_addr = htonl(ADDR_ANY);
-	addr_in.sin_family = AF_INET;
-	addr_in.sin_port = htons(port);
+#elif defined CR_LINUX
+	int socketFlag = fcntl(pInner->soc, F_GETFL, 0);
+	if (fcntl(pInner->soc, F_SETFL, socketFlag) == -1)
+	{
+		CRThrowError(CRERR_BASIC_INETIOCTL, CRDES_BASIC_INETIOCTL);
+		goto Failed;
+	}
+	addr_in.sin_addr.s_addr = htonl(INADDR_ANY);
+#endif
 	//绑定，然后监听端口
 	if (bind(pInner->soc, (SOCKADDR*)&addr_in, sizeof(SOCKADDR_IN)) < 0)
 	{
@@ -150,9 +160,9 @@ CRAPI CRINET CRServerInet(CRInetFunction func, CRUINT16 port)
 	CRINET id = 0;
 	CRLinGet(availableIDsocket, &id, 0);
 	if (!id)
-		id = CurrentIDsocket++;
+		id = (CRINET)CurrentIDsocket++;
 	pInner->id = id;
-	CRTreePut(socketTree, pInner, id);
+	CRTreePut(socketTree, pInner, (CRUINT64)id);
 	return id;
 Failed:
 	if (pInner)
@@ -188,16 +198,17 @@ CRAPI CRINET CRClientInet(const char* address, CRUINT16 port, CRUINT16 timeoutSe
 		CRThrowError(CRERR_BASIC_INETCREATE, CRDES_BASIC_INETCREATE);
 		goto Failed;
 	}
+	SOCKADDR_IN addr_in;
+	addr_in.sin_family = AF_INET;
+	addr_in.sin_port = htons(port);
+#ifdef CR_WINDOWS
 	int imod = 1;
 	if (ioctlsocket(pInner->soc, FIONBIO, (u_long*)&imod) == SOCKET_ERROR)
 	{
 		CRThrowError(CRERR_BASIC_INETIOCTL, CRDES_BASIC_INETIOCTL);
 		goto Failed;
 	}
-	SOCKADDR_IN addr_in;
 	addr_in.sin_addr.S_un.S_addr = inet_addr(address);
-	addr_in.sin_family = AF_INET;
-	addr_in.sin_port = htons(port);
 	int iRet = connect(pInner->soc, (struct sockaddr*)&addr_in, sizeof(struct sockaddr_in));
 	if (iRet == 0)
 		goto Succeed;
@@ -226,14 +237,60 @@ CRAPI CRINET CRClientInet(const char* address, CRUINT16 port, CRUINT16 timeoutSe
 		else if (iRet == WSAEISCONN)
 			goto Succeed;
 	}
+#elif defined CR_LINUX
+	int socketFlag = fcntl(pInner->soc, F_GETFL, 0);
+	if (fcntl(pInner->soc, F_SETFL, socketFlag) == -1)
+	{
+		CRThrowError(CRERR_BASIC_INETIOCTL, CRDES_BASIC_INETIOCTL);
+		goto Failed;
+	}
+	addr_in.sin_addr.s_addr = inet_addr(address);
+	int iRet = connect(pInner->soc, (struct sockaddr*)&addr_in, sizeof(struct sockaddr_in));
+	if (iRet == 0)
+		goto Succeed;
+	else if(iRet < 0)
+	{
+		if (errno == EINPROGRESS)
+		{
+			fd_set wtfds;
+			struct timeval tv;
+			FD_ZERO(&wtfds);
+			FD_SET(pInner->soc, &wtfds);
+			tv.tv_sec = timeoutSecond;
+			tv.tv_usec = 0;
+			//
+			//参考文献：CCL
+			//文献作者：我
+			//
+			//Linux有一个特点，使用回环地址127.0.0.1
+			//socket会立即发生变化（这种信号表示连接成功），即使没有开启对应端口的服务端
+			//只有在使用外网地址时才会有因为连不上而超时的现象
+			//这一点很坑（猜测是被系统代管了）
+			//
+			//好吧，我观察到这一现象的端倪了，当client刚刚运行时立刻启动server,会报bind error
+			//这就说明client启动后有什么东西以服务端的名义占用了端口，server应该先于客户
+			//端启动，然后就正常了
+			iRet = select(pInner->soc + 1, NULL, &wtfds, NULL, &tv);
+			if (iRet < 0)  //出错（～～啊～哈啊！～～～～～
+				goto Error;
+			else if (iRet == 0)  //超时了（果然……还是输给你了呢～
+			{
+				CRThrowError(CRERR_BASIC_TIMEOUT, CRDES_BASIC_TIMEOUT);
+				goto Failed;
+			}
+			else if (iRet == 1 && FD_ISSET(pInner->soc, &wtfds))
+				goto Succeed;
+		}
+	}
+#endif
 Error:
 	CRThrowError(CRERR_BASIC_CONNECT, CRDES_BASIC_CONNECT);
 	goto Failed;
 Succeed:
 	CRLinGet(availableIDsocket, &id, 0);
 	if (!id)
-		id = CurrentIDsocket++;
-	CRTreePut(socketTree, pInner, id);
+		id = (CRINET)CurrentIDsocket++;
+	CRTreePut(socketTree, pInner, (CRUINT64)id);
 	pInner->id = id;
 	return id;
 Failed:
@@ -249,7 +306,7 @@ Failed:
 CRAPI CRCODE CRCloseInet(CRINET inet)
 {
 	PCRINETINNER pInner = NULL;
-	CRTreeGet(socketTree, &pInner, inet);
+	CRTreeGet(socketTree, (void*)&pInner, (CRUINT64)inet);
 	if (!pInner)
 		return CRERR_INVALID;
 	if (pInner->type == CR_INET_SERVER)
@@ -264,7 +321,7 @@ CRAPI CRCODE CRCloseInet(CRINET inet)
 	return 0;
 }
 
-void _inet_clear_callback_(CRLVOID* data)
+void _inet_clear_callback_(CRLVOID data)
 {
 	PCRINETINNER pInner = data;
 	closesocket(pInner->soc);

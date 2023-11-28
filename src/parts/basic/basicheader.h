@@ -23,7 +23,15 @@
 #include <netdb.h>
 #include <errno.h>
 #include <fcntl.h>
+
+//
+//简单方便又快捷招
+
 #define closesocket(soc) close(soc)
+#define INVALID_SOCKET -1
+typedef struct sockaddr_in SOCKADDR_IN;
+typedef struct sockaddr SOCKADDR;
+
 #endif
 
 #endif  //include

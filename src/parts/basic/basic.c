@@ -24,7 +24,7 @@ CRAPI CRCODE CRBasicInit()
 #ifdef CR_WINDOWS  //几乎不会出错，除非是xp系统
 	if (!QueryPerformanceFrequency(&frequency)) return -1;
 #endif
-	CurrentIDthread = 1;
+	CurrentIDthread = (CRLVOID)1;
 	threadTree = CRTree();
 	if (!threadTree)
 		return CRERR_OUTOFMEM;
@@ -44,7 +44,7 @@ CRAPI CRCODE CRBasicInit()
 		return CRERR_BASIC_FAILEDINET;
 	}
 #endif
-	CurrentIDsocket = 1;
+	CurrentIDsocket = (CRLVOID)1;
 	socketTree = CRTree();
 	if (!socketTree)
 		return CRERR_OUTOFMEM;
@@ -60,7 +60,7 @@ CRAPI CRCODE CRBasicInit()
 	return 0;
 }
 
-extern void _inet_clear_callback_(CRLVOID* data);
+extern void _inet_clear_callback_(CRLVOID data);
 
 CRAPI void CRBasicUninit()
 {
