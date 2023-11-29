@@ -328,3 +328,27 @@ void _inet_clear_callback_(CRLVOID data)
 	if (pInner->type == CR_INET_CLIENT)
 		free(pInner);
 }
+
+CRAPI CRCODE CRInetSnd(CRINET inet, CRUINT32 slength, CRUINT8* sndBuffer)
+{
+	PCRINETINNER pInner = NULL;
+	CRTreeSeek(socketTree, (void*)&pInner, (CRUINT64)inet);
+	if (!pInner)
+	{
+		CRThrowError(CRERR_INVALID, NULL);
+		return -2;
+	}
+	return send(pInner->soc, sndBuffer, slength, 0);
+}
+
+CRAPI CRCODE CRInetRcv(CRINET inet, CRUINT32 maxsize, CRUINT8* rcvBuffer)
+{
+	PCRINETINNER pInner = NULL;
+	CRTreeSeek(socketTree, (void*)&pInner, (CRUINT64)inet);
+	if (!pInner)
+	{
+		CRThrowError(CRERR_INVALID, NULL);
+		return -2;
+	}
+	return recv(pInner->soc, rcvBuffer, maxsize, 0);
+}

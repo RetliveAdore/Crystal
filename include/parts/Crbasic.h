@@ -69,6 +69,17 @@ CRAPI CRINET CRServerInet(CRInetFunction func, CRUINT16 port);
 CRAPI CRINET CRClientInet(const char* address, CRUINT16 port, CRUINT16 timeoutSecond);
 CRAPI CRCODE CRCloseInet(CRINET inet);
 
+//
+
+/*
+* 这两个API返回值都是实际发送/接收的字节数
+* 返回-1就是出错了
+* 返回0表示连接断开
+*/
+
+CRAPI CRCODE CRInetSnd(CRINET inet, CRUINT32 slength, CRUINT8* sndBuffer);
+CRAPI CRCODE CRInetRcv(CRINET inet, CRUINT32 maxsize, CRUINT8* rcvBuffer);
+
 #ifdef __cplusplus
 }
 #endif
