@@ -16,13 +16,19 @@ typedef CRLVOID CRTREEXTRA;
 extern "C" {
 #endif
 
-/*创建一个二叉区域查找树*/
-CRTREEXTRA CRRangeTree();
+/*
+* Crystal中四叉树不用作一般数据存储，仅用于空间索引，不进行平衡处理
+* 这个数据结构是特化用于碰撞检测和UI快速查找的，不宜用于其他用途
+*/
 
 /*创建一个四叉查找树*/
-CRTREEXTRA CRQuadtree();
-/*创建一个四叉区域查找树*/
-CRTREEXTRA CRRangeQuadtree();
+CRAPI CRTREEXTRA CRQuadtree();
+
+CRAPI CRCODE CRQuadtreePut();
+CRAPI CRCODE CRQuadtreeGet();
+CRAPI CRCODE CRQuadtreeNear();
+
+CRAPI CRCODE CRFreeTreextra(CRTREEXTRA tree);
 
 #ifdef __cplusplus
 }

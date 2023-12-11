@@ -139,4 +139,32 @@ typedef struct
 
 //
 
+//通用的二维坐标结构
+typedef struct
+{
+	CRUINT64 x;
+	CRUINT64 y;
+}CRPOINTU;
+typedef struct
+{
+	double x;
+	double y;
+}CRPOINTF;
+
+//矩形结构/二维碰撞箱结构
+typedef struct
+{
+	CRUINT64 left;
+	CRUINT64 top;
+	CRUINT64 right;
+	CRUINT64 bottom;
+}CRRECTU, CRBOXU;
+typedef struct
+{
+	double left;
+	double top;
+	double right;
+	double bottom;
+}CRRECTF, CRBOXF;
+
 #endif

@@ -1,0 +1,3 @@
+[submodule "ThirdParty/freetype"]
+	path = ThirdParty/freetype
+	url = https://github.com/RetliveAdore/freetype

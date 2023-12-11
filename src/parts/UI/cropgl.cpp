@@ -1,5 +1,6 @@
 ﻿#include <cropgl.hpp>
 #include <math.h>
+#include <freetype/freetype.h>
 
 //一些常数
 static const CRUINT32 ratio = 4;
