@@ -9,13 +9,9 @@
 #include <pthread.h>
 #endif
 
-#define DYN 0x00
-#define TRE 0x01
-#define LIN 0x02
-#define LOO 0x03
-
 //容量限制是512MB
 #define DYN_MAX (sizeof(CRUINT8) << 29)
+#define DYN_MAX_PTR ((sizeof(CRUINT8) << 29) / sizeof(CRLVOID))
 
 #define GET_MOD(num, mod) { if ((num) < 0) (num) = -(-(num) % (mod)); else if ((num > 0)) (num) = ((num) % (mod)); }
 
@@ -58,7 +54,12 @@ void LeaveCriticalSection(pthread_mutex_t* mt)
 typedef struct
 {
 	CRSTRUCTUREPUB pub;
-	CRUINT8* arr;
+	CRUINT8 feature;  //0-CRUINT8* arr, 1-CRLVOID* ptr
+	union
+	{
+		CRLVOID* ptr;
+		CRUINT8* arr;
+	};
 	CRUINT32 capacity;
 }CRDYN, *PCRDYN;
 
@@ -113,7 +114,32 @@ CRAPI CRSTRUCTURE CRDynamic()
 		CRThrowError(CRERR_OUTOFMEM, NULL);
 		return NULL;
 	}
+	pInner->feature = 0;
 	pInner->arr = malloc(sizeof(CRUINT8));
+	if (!pInner->arr)
+	{
+		free(pInner);
+		CRThrowError(CRERR_OUTOFMEM, NULL);
+		return NULL;
+	}
+	pInner->pub.type = DYN;
+	pInner->pub.total = 0;
+	InitializeCriticalSection(&(pInner->pub.cs));
+	pInner->arr[0] = 0;
+	pInner->capacity = 1;
+	return pInner;
+}
+
+CRAPI CRSTRUCTURE CRDynamicPtr()
+{
+	PCRDYN pInner = malloc(sizeof(CRDYN));
+	if (!pInner)
+	{
+		CRThrowError(CRERR_OUTOFMEM, NULL);
+		return NULL;
+	}
+	pInner->feature = 1;
+	pInner->arr = malloc(sizeof(CRLVOID));
 	if (!pInner->arr)
 	{
 		free(pInner);
@@ -228,7 +254,7 @@ CRAPI CRUINT8* CRDynArr(CRSTRUCTURE dyn, CRUINT32* size)
 CRAPI CRCODE CRDynPush(CRSTRUCTURE dyn, CRUINT8 data)
 {
 	PCRDYN pInner = dyn;
-	if (!pInner || pInner->pub.type != DYN)
+	if (!pInner || pInner->pub.type != DYN || pInner->feature != 0)
 		return CRERR_INVALID;
 	EnterCriticalSection(&(pInner->pub.cs));
 	if (pInner->pub.total < pInner->capacity)
@@ -258,10 +284,43 @@ CRAPI CRCODE CRDynPush(CRSTRUCTURE dyn, CRUINT8 data)
 	return 0;
 }
 
+CRAPI CRCODE CRDynPushPtr(CRSTRUCTURE dynPtr, CRLVOID data)
+{
+	PCRDYN pInner = dynPtr;
+	if (!pInner || pInner->pub.type != DYN || pInner->feature != 1)
+		return CRERR_INVALID;
+	EnterCriticalSection(&(pInner->pub.cs));
+	if (pInner->pub.total < pInner->capacity)
+	{
+		pInner->ptr[pInner->pub.total++] = data;
+		LeaveCriticalSection(&(pInner->pub.cs));
+		return 0;
+	}
+	//需要扩容的情况，不得超过容量限制
+	if (pInner->capacity >= DYN_MAX_PTR)
+	{
+		CRThrowError(CRERR_STRUCTURE_FULL, CRDES_STRUCTURE_FULL);
+		LeaveCriticalSection(&(pInner->pub.cs));
+		return CRERR_STRUCTURE_FULL;
+	}
+	pInner->capacity <<= 1;
+	CRLVOID* tmp = (CRLVOID*)_sizeup_cr_(pInner->arr, pInner->pub.total * sizeof(CRLVOID), pInner->capacity * sizeof(CRLVOID));
+	if (!tmp)
+	{
+		CRThrowError(CRERR_STRUCTURE_RESIZE, CRDES_STRUCTURE_RESIZE);
+		LeaveCriticalSection(&(pInner->pub.cs));
+		return CRERR_STRUCTURE_RESIZE;
+	}
+	tmp[pInner->pub.total++] = data;
+	pInner->ptr = tmp;
+	LeaveCriticalSection(&(pInner->pub.cs));
+	return 0;
+}
+
 CRAPI CRCODE CRDynSet(CRSTRUCTURE dyn, CRUINT8 data, CRUINT32 sub)
 {
 	PCRDYN pInner = dyn;
-	if (!pInner || pInner->pub.type != DYN)
+	if (!pInner || pInner->pub.type != DYN || pInner->feature != 0)
 		return CRERR_INVALID;
 	EnterCriticalSection(&(pInner->pub.cs));
 	if (sub < pInner->pub.total)
@@ -294,10 +353,46 @@ CRAPI CRCODE CRDynSet(CRSTRUCTURE dyn, CRUINT8 data, CRUINT32 sub)
 	return 0;
 }
 
+CRAPI CRCODE CRDynSetPtr(CRSTRUCTURE dynPtr, CRLVOID data, CRUINT32 sub)
+{
+	PCRDYN pInner = dynPtr;
+	if (!pInner || pInner->pub.type != DYN || pInner->feature != 1)
+		return CRERR_INVALID;
+	EnterCriticalSection(&(pInner->pub.cs));
+	if (sub < pInner->pub.total)
+		pInner->ptr[sub] = data;
+	else if (sub < pInner->capacity)
+	{
+		pInner->ptr[sub] = data;
+		pInner->pub.total = sub + 1;
+	}
+	else if (sub + 1 < DYN_MAX_PTR)
+	{
+		while (pInner->capacity < sub + 1) pInner->capacity <<= 1;
+		CRLVOID* tmp = (CRLVOID*)_sizeup_cr_(pInner->arr, pInner->pub.total * sizeof(CRLVOID), pInner->capacity * sizeof(CRLVOID));
+		if (!tmp)
+		{
+			LeaveCriticalSection(&(pInner->pub.cs));
+			return CRERR_OUTOFMEM;
+		}
+		tmp[sub++] = data;
+		pInner->ptr = tmp;
+		pInner->pub.total = sub;
+	}
+	else
+	{
+		CRThrowError(CRERR_STRUCTURE_FULL, CRDES_STRUCTURE_FULL);
+		LeaveCriticalSection(&(pInner->pub.cs));
+		return CRERR_STRUCTURE_FULL;
+	}
+	LeaveCriticalSection(&(pInner->pub.cs));
+	return 0;
+}
+
 CRAPI CRCODE CRDynPop(CRSTRUCTURE dyn, CRUINT8* data)
 {
 	PCRDYN pInner = dyn;
-	if (!pInner || pInner->pub.type != DYN)
+	if (!pInner || pInner->pub.type != DYN || pInner->feature != 0)
 		return CRERR_INVALID;
 	EnterCriticalSection(&(pInner->pub.cs));
 	if (pInner->pub.total == 0)
@@ -316,12 +411,34 @@ CRAPI CRCODE CRDynPop(CRSTRUCTURE dyn, CRUINT8* data)
 	return 0;
 }
 
+CRAPI CRCODE CRDynPopPtr(CRSTRUCTURE dynPtr, CRLVOID* data)
+{
+	PCRDYN pInner = dynPtr;
+	if (!pInner || pInner->pub.type != DYN || pInner->feature != 1)
+		return CRERR_INVALID;
+	EnterCriticalSection(&(pInner->pub.cs));
+	if (pInner->pub.total == 0)
+	{
+		LeaveCriticalSection(&(pInner->pub.cs));
+		return CRERR_NOTFOUND;
+	}
+	pInner->pub.total--;
+	if (data) *data = pInner->ptr[pInner->pub.total];
+	if (pInner->pub.total < pInner->capacity >> 1 && pInner->capacity > 32)//可以释放一些空间
+	{
+		pInner->capacity >>= 1;
+		pInner->ptr = (CRLVOID*)_sizedown_cr_(pInner->arr, pInner->capacity * sizeof(CRLVOID));
+	}
+	LeaveCriticalSection(&(pInner->pub.cs));
+	return 0;
+}
+
 CRAPI CRCODE CRDynSeek(CRSTRUCTURE dyn, CRUINT8* data, CRUINT32 sub)
 {
 	PCRDYN pInner = dyn;
 	if (pInner && pInner->pub.type == DYN)
 	{
-		if (!data)
+		if (!data || pInner->feature != 0)
 			return CRERR_INVALID;
 		EnterCriticalSection(&(pInner->pub.cs));
 		if (sub < pInner->pub.total)
@@ -334,7 +451,25 @@ CRAPI CRCODE CRDynSeek(CRSTRUCTURE dyn, CRUINT8* data, CRUINT32 sub)
 	return CRERR_NOTFOUND;
 }
 
-CRAPI CRUINT8* CRDynCopy(CRSTRUCTURE dyn, CRUINT32* size)
+CRAPI CRCODE CRDynSeekPtr(CRSTRUCTURE dynPtr, CRLVOID* data, CRUINT32 sub)
+{
+	PCRDYN pInner = dynPtr;
+	if (pInner && pInner->pub.type == DYN)
+	{
+		if (!data || pInner->feature != 1)
+			return CRERR_INVALID;
+		EnterCriticalSection(&(pInner->pub.cs));
+		if (sub < pInner->pub.total)
+			*data = pInner->ptr[sub];
+		else
+			*data = 0;
+		LeaveCriticalSection(&(pInner->pub.cs));
+		return 0;
+	}
+	return CRERR_NOTFOUND;
+}
+
+CRAPI void* CRDynCopy(CRSTRUCTURE dyn, CRUINT32* size)
 {
 	PCRDYN pInner = dyn;
 	if (!pInner || pInner->pub.type != DYN)
@@ -362,15 +497,17 @@ CRAPI CRUINT8* CRDynCopy(CRSTRUCTURE dyn, CRUINT32* size)
 	return out;
 }
 
-CRAPI void CRDynFreeCopy(CRUINT8* data)
+CRAPI void CRDynFreeCopy(void* data)
 {
 	free(data);
 }
 
-CRAPI CRCODE CRDynSetup(CRSTRUCTURE dyn, CRUINT8* buffer, CRUINT32 size)
+CRAPI CRCODE CRDynSetup(CRSTRUCTURE dyn, void* buffer, CRUINT32 size)
 {
 	PCRDYN pInner = dyn;
 	if (!pInner || pInner->pub.type != DYN)
+		return CRERR_INVALID;
+	if (pInner->feature == 1 && size % sizeof(CRLVOID) != 0)
 		return CRERR_INVALID;
 	if (size > DYN_MAX)
 	{
@@ -956,7 +1093,10 @@ void _clear_nothing_(CRSTRUCTURE s, DSCallback cal) { return; }
 void _clear_dyn_(CRSTRUCTURE s, DSCallback cal)
 {
 	PCRDYN dyn = s;
-	for (int i = 0; i < dyn->pub.total; i++) cal((CRLVOID)(CRUINT64)(dyn->arr[i]));
+	if (dyn->feature == 0)
+		for (int i = 0; i < dyn->pub.total; i++) cal((CRLVOID)(CRUINT64)(dyn->arr[i]));
+	else if (dyn->feature == 1)
+		for (int i = 0; i < dyn->pub.total; i++) cal(dyn->ptr[i]);
 	free(dyn->arr);
 }
 
@@ -1011,13 +1151,16 @@ CRAPI CRCODE CRFreeStructure(CRSTRUCTURE s, DSCallback cal)
 		return CRERR_INVALID;
 	//如此操作只是为了确保最后一个操作完成，假如后面还有操作，造成的错误概不负责
 	EnterCriticalSection(&(pub->cs));
-	LeaveCriticalSection(&(pub->cs));
-	DeleteCriticalSection(&(pub->cs));
 	if (!cal)
 		cal = _struc_do_nothing_;
 	if (pub->type < 0 || pub->type > 3)
+	{
+		LeaveCriticalSection(&(pub->cs));
 		return CRERR_INVALID;
+	}
 	clearFuncs[pub->type](s, cal);
+	LeaveCriticalSection(&(pub->cs));
+	DeleteCriticalSection(&(pub->cs));
 	free(s);
 	return 0;
 }

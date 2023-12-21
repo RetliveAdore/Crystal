@@ -2,8 +2,6 @@
 
 project("Crystal" C CXX)
 
-add_subdirectory("ThirdParty/freetype")
-
 include_directories("./ThirdParty/freetype/include")
 include_directories("./include")
 include_directories("./src/headers")
@@ -12,11 +10,14 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/build/bin$<$<CONFIG:Debu
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/build/bin$<$<CONFIG:Debug>:_debug>")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/build/bin$<$<CONFIG:Debug>:_debug>")
 
-add_compile_options(-fPIC)
-add_link_options(-no-pie)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  add_compile_options(-fPIC)
+  add_link_options(-no-pie)
   link_libraries(m dl pthread X11 GL GLU asound)
+  link_directories("./ThirdParty/freetype//Linux")
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+  link_directories("./ThirdParty/freetype//Windows")
 endif()
 
 file(GLOB_RECURSE Crystal_Files
@@ -96,7 +97,7 @@ add_dependencies("Crdynextra" "Crystal")
 add_dependencies("Crtreextra" "Crystal")
 add_dependencies("Crbasic" "Crystal")
 add_dependencies("Crbinary" "Crystal" "Crdynextra")
-add_dependencies("CrUI" "Crystal" "Crbasic" "freetype")
+add_dependencies("CrUI" "Crystal" "Crbasic")
 add_dependencies("CrAudio" "Crystal" "Crbasic")
 
 if(MSVC)

@@ -7,8 +7,8 @@
 #ifndef _INCLUDE_CRTREEEXTRA_H_
 #define _INCLUDE_CRTREEEXTRA_H_
 
-//实际上这里的树都是相对独立的体系，不需要用到原本的头文件
 #include "../crdefs.h"
+#include "../datastructure.h"
 
 typedef CRLVOID CRTREEXTRA;
 
@@ -21,14 +21,23 @@ extern "C" {
 * 这个数据结构是特化用于碰撞检测和UI快速查找的，不宜用于其他用途
 */
 
-/*创建一个四叉查找树*/
-CRAPI CRTREEXTRA CRQuadtree();
+/*创建一个四叉查找树
+* 与二叉树不同的是，这种树用来分割空间，必须有一个初始的空间范围
+* 以此为根范围，以有用户设置为准，通常为窗口大小
+* 但是窗口大小经常变化的话，建议使用一个固定的值，然后计算映射。因为不提供更改范围值的接口（也没设计对应的实现）
+* -s-
+* w / h: w 和 h 是必要的
+* max: 当同一个节点中实体数量超过max之后，节点分裂，创建后此值不可修改
+* -s-
+* 要注意这个树是不平衡的，和红黑树不一样
+*/
+CRAPI CRTREEXTRA CRQuadtree(CRUINT64 w, CRUINT64 h, CRUINT8 max);
 
-CRAPI CRCODE CRQuadtreePut();
-CRAPI CRCODE CRQuadtreeGet();
-CRAPI CRCODE CRQuadtreeNear();
+CRAPI CRCODE CRQuadtreePushin(CRTREEXTRA tree, CRRECTU range, CRUINT32 key);
+CRAPI CRCODE CRQuadtreeRamove(CRTREEXTRA tree, CRUINT32 key);
+CRAPI CRCODE CRQuadtreeSearch(CRTREEXTRA tree, CRPOINTU p);
 
-CRAPI CRCODE CRFreeTreextra(CRTREEXTRA tree);
+CRAPI CRCODE CRFreeTreextra(CRTREEXTRA* pTree, DSCallback cbk);
 
 #ifdef __cplusplus
 }

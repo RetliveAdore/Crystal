@@ -102,6 +102,12 @@ typedef unsigned long CRUINT64;
 typedef void* CRLVOID;
 typedef CRINT32 CRCODE;
 
+#define DYN 0x00
+#define TRE 0x01
+#define LIN 0x02
+#define LOO 0x03
+#define QUA 0x04
+
 //
 
 /*

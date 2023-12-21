@@ -26,6 +26,7 @@ extern "C" {
 */
 
 CRAPI CRSTRUCTURE CRDynamic();
+CRAPI CRSTRUCTURE CRDynamicPtr();  //此函数创建的动态数组以指针（通常64位/8字节）为基本单元
 CRAPI CRSTRUCTURE CRTree();
 CRAPI CRSTRUCTURE CRLinear();
 CRAPI CRSTRUCTURE CRLoop();
@@ -45,12 +46,21 @@ CRAPI CRCODE CRDynPush(CRSTRUCTURE dyn, CRUINT8 data);
 CRAPI CRCODE CRDynSet(CRSTRUCTURE dyn, CRUINT8 data, CRUINT32 sub);
 CRAPI CRCODE CRDynPop(CRSTRUCTURE dyn, CRUINT8* data);
 CRAPI CRCODE CRDynSeek(CRSTRUCTURE dyn, CRUINT8* data, CRUINT32 sub);
-CRAPI CRUINT8* CRDynCopy(CRSTRUCTURE dyn, CRUINT32* size);
-CRAPI void CRDynFreeCopy(CRUINT8* data);
+//上下两种不可混用，否则会报INVALID错误
+CRAPI CRCODE CRDynPushPtr(CRSTRUCTURE dyn, CRLVOID data);
+CRAPI CRCODE CRDynSetPtr(CRSTRUCTURE dyn, CRLVOID data, CRUINT32 sub);
+CRAPI CRCODE CRDynPopPtr(CRSTRUCTURE dyn, CRLVOID* data);
+CRAPI CRCODE CRDynSeekPtr(CRSTRUCTURE dyn, CRLVOID* data, CRUINT32 sub);
+//下面两个函数可以混用，本质上不构成区别
+CRAPI void* CRDynCopy(CRSTRUCTURE dyn, CRUINT32* size);
+CRAPI void CRDynFreeCopy(void* data);
 
 //使用已有的数据立即初始化动态数组
 //假如buffer是NULL，就清空数组并重新初始化
-CRAPI CRCODE CRDynSetup(CRSTRUCTURE dyn, CRUINT8* buffer, CRUINT32 size);
+//要注意，size是字节数而非下标大小，通常CRLVOID一个下标就有四字节
+//同样可以混用，但是在指针存储模式下size必须是单个指针字节数的整数倍
+//否则将返回INVALID
+CRAPI CRCODE CRDynSetup(CRSTRUCTURE dyn, void* buffer, CRUINT32 size);
 
 //
 
