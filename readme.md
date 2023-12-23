@@ -49,6 +49,8 @@ static void _on_close_(void)
 ~~~shell
 #进入Crystal的项目根目录，然后执行：
 bash Autobuild.sh
+#以上命令有问题建议进入vim将doc文件格式改为unix
+#:set ff=unix
 
 #之后在。/build/bin/文件夹中会有生成的二进制文件
 cd ./build/bin/

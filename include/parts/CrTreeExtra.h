@@ -29,13 +29,14 @@ extern "C" {
 * w / h: w 和 h 是必要的
 * max: 当同一个节点中实体数量超过max之后，节点分裂，创建后此值不可修改
 * -s-
-* 要注意这个树是不平衡的，和红黑树不一样
+* 要注意这个树是不平衡的，和红黑树不一样，而且在同一个区域插入太多元素会使其逐渐线性退化（重叠性能退化）
 */
 CRAPI CRTREEXTRA CRQuadtree(CRUINT64 w, CRUINT64 h, CRUINT8 max);
 
-CRAPI CRCODE CRQuadtreePushin(CRTREEXTRA tree, CRRECTU range, CRUINT32 key);
-CRAPI CRCODE CRQuadtreeRamove(CRTREEXTRA tree, CRUINT32 key);
-CRAPI CRCODE CRQuadtreeSearch(CRTREEXTRA tree, CRPOINTU p);
+CRAPI CRCODE CRQuadtreePushin(CRTREEXTRA tree, CRRECTU range, CRLVOID key);
+CRAPI CRCODE CRQuadtreeRemove(CRTREEXTRA tree, CRLVOID key);
+//选用动态数组作为输出承载是因为可能遇到元素重叠的情况，这时需要将其全部输出
+CRAPI CRCODE CRQuadtreeSearch(CRTREEXTRA tree, CRPOINTU p, CRSTRUCTURE dynPtrOut);
 
 CRAPI CRCODE CRFreeTreextra(CRTREEXTRA* pTree, DSCallback cbk);
 

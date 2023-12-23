@@ -81,7 +81,7 @@ add_compile_definitions(CR_SHARED_LIB CR_BUILD_DLL)
 add_executable("Demo" ${Demo_Files})
 
 #添加库依赖
-target_link_libraries("Demo" Crystal Crdynextra Crbasic Crbinary CrUI CrAudio)
+target_link_libraries("Demo" Crystal Crdynextra Crtreextra Crbasic Crbinary CrUI CrAudio)
 target_link_libraries("Crdynextra" Crystal)
 target_link_libraries("Crtreextra" Crystal)
 target_link_libraries("Crbasic" Crystal)
