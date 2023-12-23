@@ -264,10 +264,26 @@ Merge:  //对当前结点做出判断，符合条件的进行融合
 		else if (numLT + numRT + numRB + numLB + numME <= max)
 		{
 			PCRQUADITEMS item;
-			while (!CRDynPopPtr(node->LT->items, (CRLVOID*)&item)) CRDynPushPtr(node->items, item);
-			while (!CRDynPopPtr(node->RT->items, (CRLVOID*)&item)) CRDynPushPtr(node->items, item);
-			while (!CRDynPopPtr(node->RB->items, (CRLVOID*)&item)) CRDynPushPtr(node->items, item);
-			while (!CRDynPopPtr(node->LB->items, (CRLVOID*)&item)) CRDynPushPtr(node->items, item);
+			while (!CRDynPopPtr(node->LT->items, (CRLVOID*)&item))
+			{
+				item->hook = node;
+				CRDynPushPtr(node->items, item);
+			}
+			while (!CRDynPopPtr(node->RT->items, (CRLVOID*)&item))
+			{
+				item->hook = node;
+				CRDynPushPtr(node->items, item);
+			}
+			while (!CRDynPopPtr(node->RB->items, (CRLVOID*)&item))
+			{
+				item->hook = node;
+				CRDynPushPtr(node->items, item);
+			}
+			while (!CRDynPopPtr(node->LB->items, (CRLVOID*)&item))
+			{
+				item->hook = node;
+				CRDynPushPtr(node->items, item);
+			}
 			goto Melt;
 		}
 	}

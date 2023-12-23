@@ -515,32 +515,64 @@ CRAPI CRCODE CRDynSetup(CRSTRUCTURE dyn, void* buffer, CRUINT32 size)
 		return CRERR_STRUCTURE_FULL;
 	}
 	EnterCriticalSection(&(pInner->pub.cs));
-	if (!buffer)
+	if (pInner->feature == 0)
 	{
+		if (!buffer)
+		{
+			CRUINT8* tmp = calloc(pInner->capacity, sizeof(CRUINT8));
+			if (!tmp)
+			{
+				LeaveCriticalSection(&(pInner->pub.cs));
+				return CRERR_OUTOFMEM;
+			}
+			free(pInner->arr);
+			pInner->arr = tmp;
+			pInner->pub.total = 0;
+			pInner->capacity = 1;
+			goto Done;
+		}
+		pInner->capacity = 1;
+		while (pInner->capacity < size) pInner->capacity <<= 1;
 		CRUINT8* tmp = calloc(pInner->capacity, sizeof(CRUINT8));
 		if (!tmp)
 		{
 			LeaveCriticalSection(&(pInner->pub.cs));
 			return CRERR_OUTOFMEM;
 		}
+		memcpy(tmp, buffer, size);
 		free(pInner->arr);
 		pInner->arr = tmp;
-		pInner->pub.total = 0;
-		pInner->capacity = 1;
-		goto Done;
+		pInner->pub.total = size;
 	}
-	pInner->capacity = 1;
-	while (pInner->capacity < size) pInner->capacity <<= 1;
-	CRUINT8* tmp = calloc(pInner->capacity, sizeof(CRUINT8));
-	if (!tmp)
+	else if (pInner->feature == 1)
 	{
-		LeaveCriticalSection(&(pInner->pub.cs));
-		return CRERR_OUTOFMEM;
+		if (!buffer)
+		{
+			CRLVOID* tmp = calloc(pInner->capacity, sizeof(CRLVOID));
+			if (!tmp)
+			{
+				LeaveCriticalSection(&(pInner->pub.cs));
+				return CRERR_OUTOFMEM;
+			}
+			free(pInner->ptr);
+			pInner->ptr = tmp;
+			pInner->pub.total = 0;
+			pInner->capacity = 1;
+			goto Done;
+		}
+		pInner->capacity = 1;
+		while (pInner->capacity < size) pInner->capacity <<= 1;
+		CRLVOID* tmp = calloc(pInner->capacity, sizeof(CRLVOID));
+		if (!tmp)
+		{
+			LeaveCriticalSection(&(pInner->pub.cs));
+			return CRERR_OUTOFMEM;
+		}
+		memcpy(tmp, buffer, size * sizeof(CRLVOID));
+		free(pInner->ptr);
+		pInner->ptr = tmp;
+		pInner->pub.total = size;
 	}
-	memcpy(tmp, buffer, size);
-	free(pInner->arr);
-	pInner->arr = tmp;
-	pInner->pub.total = size;
 Done:
 	LeaveCriticalSection(&(pInner->pub.cs));
 	return 0;
