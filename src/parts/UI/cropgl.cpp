@@ -462,5 +462,5 @@ void ccl_gl::Resize(CRUINT32 x, CRUINT32 y)
     {
         glOrtho(-CRGL_RATIO, CRGL_RATIO, -CRGL_RATIO * y / x, CRGL_RATIO * y / x, CRGL_RATIO / 10, -CRGL_RATIO * 100);
     }
-    
+    Ratio();
 }

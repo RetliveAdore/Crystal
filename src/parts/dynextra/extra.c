@@ -9,6 +9,7 @@
 #include <Crystal.h>
 #include <parts/CrDynExtra.h>
 #include <crerrors.h>
+#include <datastructureheader.h>
 
 #ifdef CR_WINDOWS
 #include <Windows.h>
@@ -18,53 +19,6 @@
 
 CRLD CRCODE CRDynSizeUp(CRSTRUCTURE dyn, CRUINT32 size, CRUINT32 capacity);
 CRLD CRCODE CRDynSizeDown(CRSTRUCTURE dyn, CRUINT32 capacity);
-
-#ifdef CR_LINUX  //直接使出那一招，简单方便又快捷
-void InitializeCriticalSection(pthread_mutex_t* mt)
-{
-	pthread_mutex_init(mt, NULL);
-}
-void DeleteCriticalSection(pthread_mutex_t* mt)
-{
-	pthread_mutex_destroy(mt);
-}
-void EnterCriticalSection(pthread_mutex_t* mt)
-{
-	pthread_mutex_lock(mt);
-}
-void LeaveCriticalSection(pthread_mutex_t* mt)
-{
-	pthread_mutex_unlock(mt);
-}
-#endif
-
-//
-
-/*
-* 照搬 datastructure.c 中对动态数组结构的定义
-*/
-
-#define DYN 0x00
-//容量限制是512MB
-#define DYN_MAX (sizeof(CRUINT8) << 29)
-//共有的数据头
-typedef struct
-{
-#ifdef CR_WINDOWS
-	CRITICAL_SECTION cs;  //确保多线程安全
-#elif defined CR_LINUX
-	pthread_mutex_t cs;  //确保多线程安全
-#endif
-	CRUINT8 type;  //用于表示据结构类型
-	CRUINT32 total;  //用于表示现在有多少个元素
-} CRSTRUCTUREPUB;
-
-typedef struct
-{
-	CRSTRUCTUREPUB pub;
-	CRUINT8* arr;
-	CRUINT32 capacity;
-}CRDYN, * PCRDYN;
 
 //
 

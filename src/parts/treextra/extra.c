@@ -1,6 +1,7 @@
 ﻿#include <Crystal.h>
 #include <parts/CrTreeExtra.h>
 #include <crerrors.h>
+#include <datastructureheader.h>
 
 //必备多线程安全控制，要用到一些多线程的锁
 #ifdef CR_WINDOWS
@@ -8,25 +9,6 @@
 #elif defined CR_LINUX
 #include <pthread.h>
 #include <malloc.h>
-#endif
-
-#ifdef CR_LINUX  //直接使出那一招，简单方便又快捷
-void InitializeCriticalSection(pthread_mutex_t* mt)
-{
-	pthread_mutex_init(mt, NULL);
-}
-void DeleteCriticalSection(pthread_mutex_t* mt)
-{
-	pthread_mutex_destroy(mt);
-}
-void EnterCriticalSection(pthread_mutex_t* mt)
-{
-	pthread_mutex_lock(mt);
-}
-void LeaveCriticalSection(pthread_mutex_t* mt)
-{
-	pthread_mutex_unlock(mt);
-}
 #endif
 
 #define CRQUAD_N 0x00
@@ -40,18 +22,6 @@ void LeaveCriticalSection(pthread_mutex_t* mt)
 * 但是不推荐使用core中的函数来查询容量
 * 因为这样会很乱
 */
-
-//共有的数据头
-typedef struct
-{
-#ifdef CR_WINDOWS
-	CRITICAL_SECTION cs;  //确保多线程安全
-#elif defined CR_LINUX
-	pthread_mutex_t cs;  //确保多线程安全
-#endif
-	CRUINT8 type;  //用于表示据结构类型
-	CRUINT32 total;  //用于表示现在有多少个元素
-} CRSTRUCTUREPUB;
 
 typedef struct quadtreenode
 {
