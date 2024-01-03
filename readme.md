@@ -14,7 +14,7 @@ typedef void* CRLVOID;
 typedef CRLVOID CRSTRUCTURE;
 typedef CRSTRUCTURE* PCRSTRUCTURE;
 ~~~
-&emsp;通常俩说和Crystal关系密切的类型名都会有CR前缀成分来表明关系，以及防止重名。
+&emsp;通常来说和Crystal关系密切的类型名都会有CR前缀成分来表明关系，以及防止重名。
 ***
 所有的**函数名**和**函数指针定义**采用每个单词首字母大写的方案，例如：
 ~~~C

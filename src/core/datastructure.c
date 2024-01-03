@@ -86,6 +86,7 @@ typedef struct
 typedef struct linearnode
 {
 	CRLVOID data;
+	CRUINT64 key;  //用来支持排序的
 	struct linearnode* prior;
 	struct linearnode* after;
 }LINEARNODE, *PLINEARNODE;
@@ -1201,5 +1202,74 @@ CRAPI CRUINT32 CRStructureSize(CRSTRUCTURE s)
 {
 	if (s)
 		return ((CRSTRUCTUREPUB*)s)->total;
+	return 0;
+}
+
+void _for_dyn_(CRSTRUCTURE s, DSCallback cal)
+{
+	PCRDYN dyn = s;
+	if (dyn->feature == 0)
+		for (int i = 0; i < dyn->pub.total; i++) cal((CRLVOID)(CRUINT64)(dyn->arr[i]));
+	else if (dyn->feature == 1)
+		for (int i = 0; i < dyn->pub.total; i++) cal(dyn->ptr[i]);
+}
+
+void _for_tree_node_(PTREENODE node, DSCallback cal)
+{
+	if (node->left)
+		_for_tree_node_(node->left, cal);
+	cal(node->data);  //中序遍历当然是放在中间（这一点十分形象）
+	if (node->right)
+		_for_tree_node_(node->right, cal);
+}
+
+void _for_tree_(CRSTRUCTURE s, DSCallback cal)
+{
+	PCRTREE tree = s;
+	if (tree->root)
+		_for_tree_node_(tree->root, cal);
+}
+
+void _for_linear_(CRSTRUCTURE s, DSCallback cal)
+{
+	PCRLINEAR lin = s;
+	if (!lin->hook)
+		return;
+	PLINEARNODE node = lin->hook, p = node;
+	node->prior->after = NULL;
+	while (node->after)
+	{
+		p = node;
+		node = node->after;
+		cal(node->data);
+		free(p);
+	}
+	cal(node->data);
+}
+
+typedef void (*_Struct_For_Each_)(CRSTRUCTURE s, DSCallback cal);
+void _for_nothing_(CRSTRUCTURE s, DSCallback cal) { return; }
+
+const _Struct_For_Each_ forFuncs[] =
+{
+	_for_dyn_,
+	_for_tree_,
+	_for_linear_,
+	_for_nothing_
+};
+
+CRAPI CRCODE CRStructureForEach(CRSTRUCTURE s, DSCallback cal)
+{
+	CRSTRUCTUREPUB* pub = s;
+	if (!pub || !cal)
+		return CRERR_INVALID;
+	EnterCriticalSection(&(pub->cs));
+	if (pub->type < 0 || pub->type > 3)
+	{
+		LeaveCriticalSection(&(pub->cs));
+		return CRERR_INVALID;
+	}
+	forFuncs[pub->type](s, cal);
+	LeaveCriticalSection(&(pub->cs));
 	return 0;
 }

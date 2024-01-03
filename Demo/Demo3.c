@@ -3,41 +3,15 @@
 #include <parts/Crbasic.h>
 #include <parts/CrTreeExtra.h>
 
-CRTREEXTRA quad;
-CRSTRUCTURE dynP;
-
 CRCODE MouseEvent(PCRUIMSG msg)
 {
 	if (msg->status & CRUI_STAT_DOWN)
-	{
 		printf("mouse button down: %d, %d\n", msg->x, msg->y);
-		CRPOINTU p = {msg->x, msg->y};
-		CRQuadtreeSearch(quad, p, dynP);
-		CRLVOID key;
-		CRDynSeekPtr(dynP, &key, 0);
-		CRDynSetup(dynP, NULL, 0);
-		printf("key: %d\n", key);
-		CRQuadtreeRemove(quad, key);
-	}
 	return 0;
 }
 
 int Demo3(int argc, char** argv)
 {
-	quad = CRQuadtree(600, 400, 4);
-	dynP = CRDynamicPtr();
-
-	CRRECTU UI_1 = {0, 0, 100, 100};
-	CRQuadtreePushin(quad, UI_1, (CRLVOID)51);
-	CRRECTU UI_2 = { 100, 0, 200, 100 };
-	CRQuadtreePushin(quad, UI_2, (CRLVOID)52);
-	CRRECTU UI_3 = { 100, 100, 200, 200 };
-	CRQuadtreePushin(quad, UI_3, (CRLVOID)53);
-	CRRECTU UI_4 = { 0, 100, 100, 200 };
-	CRQuadtreePushin(quad, UI_4, (CRLVOID)54);
-	CRRECTU UI_5 = { 200, 100, 300, 200 };
-	CRQuadtreePushin(quad, UI_5, (CRLVOID)55);
-
 	CRCODE code = 0;
 	if (code = CRUIInit())
 	{
@@ -49,13 +23,43 @@ int Demo3(int argc, char** argv)
 		printf("error: %s\n", CRGetError(0));
 
 	if (code = CRSetWindowCbk(window1, MouseEvent, CRUI_MOUSE_CB))
-		printf("error: %s\n", CRGetError(0));
+		printf("error: %s\n", CRGetError(code));
 
+	CRUIENTITY entity1;
+	entity1.color.r = 1.0f;
+	entity1.color.g = 1.0f;
+	entity1.color.b = 1.0f;
+	entity1.color.a = 1.0f;
+	entity1.id = 1;
+	entity1.style_s.shape = CRUISHAPE_RECT;
+	entity1.style_s.type = CRUISTYLE_COUNTOUR;
+	entity1.stroke = 2.0f;
+	entity1.sizeBox.left = 0;
+	entity1.sizeBox.top = 0;
+	entity1.sizeBox.right = 100;
+	entity1.sizeBox.bottom = 100;
+	entity1.enableVision = CRTRUE;
+	if (code = CRWindowEntityAdd(window1, &entity1))
+		printf("error: %s\n", CRGetError(code));
+
+	CRUIENTITY entity2;
+	entity2.color.r = 1.0f;
+	entity2.color.g = 1.0f;
+	entity2.color.b = 1.0f;
+	entity2.color.a = 1.0f;
+	entity2.id = 1;
+	entity2.style_s.shape = CRUISHAPE_ELIPSE;
+	entity2.style_s.type = CRUISTYLE_FILLED;
+	entity2.stroke = 2.0f;
+	entity2.sizeBox.left = 0;
+	entity2.sizeBox.top = 0;
+	entity2.sizeBox.right = 100;
+	entity2.sizeBox.bottom = 100;
+	entity2.enableVision = CRTRUE;
+	if (code = CRWindowEntityAdd(window1, &entity2))
+		printf("error: %s\n", CRGetError(code));
 
 	while (CRUIOnQuit()) CRSleep(1);
-
-	CRFreeTreextra(&quad, NULL);
-	CRFreeStructure(dynP, NULL);
 
 	CRUIUnInit();
 	return 0;

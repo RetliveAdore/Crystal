@@ -483,9 +483,9 @@ CRAPI CRCODE CRQuadtreeSearch(CRTREEXTRA tree, CRPOINTU p, CRSTRUCTURE dynPtrOut
 	return 0;
 }
 
-CRAPI CRCODE CRFreeTreextra(CRTREEXTRA* pTree, DSCallback cbk)
+CRAPI CRCODE CRFreeTreextra(CRTREEXTRA pTree, DSCallback cbk)
 {
-	CRSTRUCTUREPUB* pInner = *pTree;
+	CRSTRUCTUREPUB* pInner = pTree;
 	if (!pInner)
 		return CRERR_INVALID;
 	switch (pInner->type)
@@ -496,6 +496,5 @@ CRAPI CRCODE CRFreeTreextra(CRTREEXTRA* pTree, DSCallback cbk)
 	default:
 		return CRERR_INVALID;
 	}
-	*pTree = NULL;
 	return 0;
 }

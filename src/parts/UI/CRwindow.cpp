@@ -19,6 +19,25 @@ void _paint_thread_(CRLVOID data, CRTHREAD idThis);
 class CRWindow
 {
 public:
+	//一些具有共通性的函数
+	void SetMinmax(CRUINT32 minx, CRUINT32 miny, CRUINT32 maxx, CRUINT32 maxy);
+	void follow(CRBOOL ifFollow);
+	void setcbk(CRWindowCallback func, CRUINT8 cbkID);
+	void SetID(CRWINDOW id);
+	CRWINDOW GetID();
+	CRBOOL follow_stat();
+
+	/*
+	 * 都是一些纯虚函数，要在下面实现多态
+	 */
+
+	virtual void quit() = 0;
+	virtual void clear() = 0;
+	virtual void Text(const char *text) = 0; // 如果要设置窗口标题的话，使用该函数
+	virtual void Move(CRINT32 x, CRINT32 y, CRUINT32 w, CRUINT32 h) = 0;
+	virtual void Entity(CRUIENTITY* pEntity) = 0;
+
+public:
 	CRWindow() {}
 	CRWindow(const char *title,
 			   CRUINT32 w, CRUINT32 h,
@@ -29,29 +48,6 @@ public:
 	CRWindow &operator=(const CRWindow &) = delete;
 	CRWindow(const CRWindow &) = delete;
 	~CRWindow() {}
-
-	/*
-	 * 都是一些纯虚函数，要在下面实现多态
-	 */
-
-	virtual void quit() = 0;
-	virtual void clear() = 0;
-	virtual void Text(const char *text) = 0; // 如果要设置窗口标题的话，使用该函数
-	virtual void Move(CRINT32 x, CRINT32 y, CRUINT32 w, CRUINT32 h) = 0;
-	
-	//一些具有共通性的函数
-	void SetMinmax(CRUINT32 minx, CRUINT32 miny, CRUINT32 maxx, CRUINT32 maxy);
-	void follow(CRBOOL ifFollow);
-	CRBOOL follow_stat();
-	void setcbk(CRWindowCallback func, CRUINT8 cbkID);
-
-	/*
-	 * 下面的方法基本上是平台无关的，无需重写
-	 */
-
-public:
-	CRWINDOW GetID();
-	void SetID(CRWINDOW id);
 	// 公开变量，可以迅速设置是否限制大小
 	CRBOOL sizeLimit = CRFALSE;
 	CRWindowCallback funcs[7] =
@@ -139,6 +135,13 @@ typedef struct cr_windowthread_inf
 class CRWindowWindows : public CRWindow
 {
 public:
+	virtual void quit();
+	virtual void clear();
+	virtual void Text(const char *text);
+	virtual void Move(CRINT32 x, CRINT32 y, CRUINT32 w, CRUINT32 h);
+	virtual void Entity(CRUIENTITY* pEntity);
+
+public:
 	CRWindowWindows(const char *title,
 					  CRUINT32 w, CRUINT32 h,
 					  CRINT32 x, CRINT32 y);
@@ -146,11 +149,6 @@ public:
 	// 禁止拷贝
 	CRWindowWindows &operator=(const CRWindowWindows &) = delete;
 	CRWindowWindows(const CRWindowWindows &) = delete;
-
-	virtual void quit();
-	virtual void clear();
-	virtual void Text(const char *text);
-	virtual void Move(CRINT32 x, CRINT32 y, CRUINT32 w, CRUINT32 h);
 
 private:
 	CRWINDOWINF inf;
@@ -183,7 +181,7 @@ CRWindowWindows::CRWindowWindows(
 		y = (s_h - h) / 2;
 
 	inf.w = w;
-	inf.h = h;
+	inf.h = h + CRUI_TITLEBAR_PIXEL;
 	inf.x = x;
 	inf.y = y;
 	inf.pgl = nullptr;
@@ -214,6 +212,12 @@ void CRWindowWindows::Text(const char *text)
 void CRWindowWindows::Move(CRINT32 x, CRINT32 y, CRUINT32 w, CRUINT32 h)
 {
 	MoveWindow(inf.hWnd, x, y, w, h, TRUE);
+}
+
+void CRWindowWindows::Entity(CRUIENTITY* pEntity)
+{
+	while (!inf.pgl) CRSleep(1);
+	inf.pgl->AddEntity(pEntity);
 }
 
 static MSG w_msg = {0};
@@ -457,6 +461,7 @@ LRESULT AfterProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, CRWindowWin
 		pThis->inf.w = cbinfo.w;
 		pThis->inf.h = cbinfo.h;
 		pThis->inf.pgl->Resize(cbinfo.x, cbinfo.y);
+		pThis->inf.pgl->Ratio();
 		if (!pThis->funcs[CRUI_SIZE_CB](&cbinfo))
 			return DefWindowProc(hWnd, msg, wParam, lParam);
 		return 0;
@@ -621,6 +626,7 @@ public:
 	virtual void clear();
 	virtual void Text(const char *text);
 	virtual void Move(CRINT32 x, CRINT32 y, CRUINT32 w, CRUINT32 h);
+	virtual void Entity(CRUIENTITY* pEntity);
 
 private:
 	CRWINDOWINF inf;
@@ -687,6 +693,12 @@ void CRWindowLinux::Text(const char *text)
 
 void CRWindowLinux::Move(CRINT32 x, CRINT32 y, CRUINT32 w, CRUINT32 h)
 {
+}
+
+void CRWindowLinux::Entity(CRUIENTITY* pEntity)
+{
+	while (!inf.pgl) CRSleep(1);
+	inf.pgl->AddEntity(pEntity);
 }
 
 void ProcessMsg(CRWINDOWINF *inf)
@@ -951,6 +963,7 @@ void _paint_thread_(CRLVOID data, CRTHREAD idThis)
 	//一定要确保创建和绘制都在同一个线程
 	inf->pgl = new ccl_gl(pDisplay, inf->vi, inf->win);
 	inf->pgl->Resize(inf->w, inf->h);
+	inf->pgl->Ratio();
 
 	CRTIMER timer = CRTimer();
 	CRTimerMark(timer);
@@ -1054,5 +1067,15 @@ CRAPI CRCODE CRSetWindowCbk(CRWINDOW window, CRWindowCallback func, CRUINT8 cbkI
 	if (!pWindow)
 		return CRERR_INVALID;
 	pWindow->setcbk(func, cbkID);
+	return 0;
+}
+
+CRAPI CRCODE CRWindowEntityAdd(CRWINDOW window, CRUIENTITY* pEntity)
+{
+	CRWindow* pWindow = NULL;
+	CRTreeSeek(windowPool, (CRLVOID*)&pWindow, window);
+	if (!pWindow || !pEntity)
+		return CRERR_INVALID;
+	pWindow->Entity(pEntity);
 	return 0;
 }

@@ -86,7 +86,7 @@ target_link_libraries("Crdynextra" Crystal)
 target_link_libraries("Crtreextra" Crystal)
 target_link_libraries("Crbasic" Crystal)
 target_link_libraries("Crbinary" Crystal Crdynextra)
-target_link_libraries("CrUI" Crystal Crbasic freetype)
+target_link_libraries("CrUI" Crystal Crbasic freetype Crtreextra)
 target_link_libraries("CrAudio" Crystal Crbasic)
 
 add_dependencies("Demo"
@@ -97,7 +97,7 @@ add_dependencies("Crdynextra" "Crystal")
 add_dependencies("Crtreextra" "Crystal")
 add_dependencies("Crbasic" "Crystal")
 add_dependencies("Crbinary" "Crystal" "Crdynextra")
-add_dependencies("CrUI" "Crystal" "Crbasic")
+add_dependencies("CrUI" "Crystal" "Crbasic" "Crtreextra")
 add_dependencies("CrAudio" "Crystal" "Crbasic")
 
 if(MSVC)

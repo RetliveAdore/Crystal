@@ -33,7 +33,9 @@ CRAPI CRSTRUCTURE CRLoop();
 
 CRAPI CRCODE CRFreeStructure(CRSTRUCTURE s, DSCallback cal);
 CRAPI CRUINT32 CRStructureSize(CRSTRUCTURE s);
-
+//遍历数据结构
+//线性的按照从前往后，树按照中序遍历
+CRAPI CRCODE CRStructureForEach(CRSTRUCTURE s, DSCallback cal);
 //
 
 /*
