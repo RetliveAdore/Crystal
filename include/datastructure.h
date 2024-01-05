@@ -14,6 +14,7 @@ typedef CRSTRUCTURE* PCRSTRUCTURE;
 可以传入函数指针来解决
 */
 typedef void(*DSCallback)(CRLVOID data);
+typedef void(*DSForeach)(CRLVOID data, CRLVOID user, CRUINT64 key);
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,7 +36,7 @@ CRAPI CRCODE CRFreeStructure(CRSTRUCTURE s, DSCallback cal);
 CRAPI CRUINT32 CRStructureSize(CRSTRUCTURE s);
 //遍历数据结构
 //线性的按照从前往后，树按照中序遍历
-CRAPI CRCODE CRStructureForEach(CRSTRUCTURE s, DSCallback cal);
+CRAPI CRCODE CRStructureForEach(CRSTRUCTURE s, DSForeach cal, CRLVOID user);
 //
 
 /*

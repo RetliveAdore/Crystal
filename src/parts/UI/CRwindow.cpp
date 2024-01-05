@@ -35,7 +35,7 @@ public:
 	virtual void clear() = 0;
 	virtual void Text(const char *text) = 0; // 如果要设置窗口标题的话，使用该函数
 	virtual void Move(CRINT32 x, CRINT32 y, CRUINT32 w, CRUINT32 h) = 0;
-	virtual void Entity(CRUIENTITY* pEntity) = 0;
+	virtual CRCODE Entity(CRUIENTITY* pEntity) = 0;
 
 public:
 	CRWindow() {}
@@ -50,7 +50,7 @@ public:
 	~CRWindow() {}
 	// 公开变量，可以迅速设置是否限制大小
 	CRBOOL sizeLimit = CRFALSE;
-	CRWindowCallback funcs[7] =
+	CRWindowCallback funcs[CALLBACK_FUNCS_NUM] =
 		{
 			_do_nothing_,
 			_do_nothing_,
@@ -58,7 +58,9 @@ public:
 			_do_nothing_,
 			_do_nothing_,
 			_do_nothing_,
-			_do_nothing_ };
+			_do_nothing_,
+			_do_nothing_,
+		};
 
 protected:
 	CRWINDOW idThis = 0;
@@ -139,7 +141,7 @@ public:
 	virtual void clear();
 	virtual void Text(const char *text);
 	virtual void Move(CRINT32 x, CRINT32 y, CRUINT32 w, CRUINT32 h);
-	virtual void Entity(CRUIENTITY* pEntity);
+	virtual CRCODE Entity(CRUIENTITY* pEntity);
 
 public:
 	CRWindowWindows(const char *title,
@@ -214,10 +216,10 @@ void CRWindowWindows::Move(CRINT32 x, CRINT32 y, CRUINT32 w, CRUINT32 h)
 	MoveWindow(inf.hWnd, x, y, w, h, TRUE);
 }
 
-void CRWindowWindows::Entity(CRUIENTITY* pEntity)
+CRCODE CRWindowWindows::Entity(CRUIENTITY* pEntity)
 {
 	while (!inf.pgl) CRSleep(1);
-	inf.pgl->AddEntity(pEntity);
+	return inf.pgl->AddEntity(pEntity);
 }
 
 static MSG w_msg = {0};
@@ -302,6 +304,7 @@ LRESULT AfterProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, CRWindowWin
 	cbinfo.y = GET_Y_LPARAM(lParam) - CRUI_TITLEBAR_PIXEL;
 	cbinfo.keycode = wParam & 0xff;
 	cbinfo.status = CRUI_STAT_OTHER;
+	CRPOINTU point;
 	if (msg == WM_CLOSE)
 	{
 		if (!pThis->funcs[CRUI_QUIT_CB](&cbinfo))
@@ -360,13 +363,9 @@ LRESULT AfterProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, CRWindowWin
 				pThis->inf.dy = cbinfo.y + CRUI_TITLEBAR_PIXEL;
 			}
 			else if (cbinfo.x > CRUI_TITLEBAR_PIXEL * 2)
-			{
-
-			}
+			{}
 			else if (cbinfo.x > CRUI_TITLEBAR_PIXEL)
-			{
-
-			}
+			{}
 			else
 				pThis->inf.preClose = CRTRUE;
 		}
@@ -374,6 +373,15 @@ LRESULT AfterProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, CRWindowWin
 		{
 			cbinfo.status = CRUI_STAT_DOWN | CRUI_STAT_LEFT;
 			pThis->funcs[CRUI_MOUSE_CB](&cbinfo);
+			//
+			cbinfo.status = CRUI_STAT_DOWN | CRUI_STAT_LEFT;
+			point.x = cbinfo.x;
+			point.y = cbinfo.y;
+			cbinfo.lp = CRDynamicPtr();
+			pThis->inf.pgl->SeekEntity(point, cbinfo.lp);
+			if (CRStructureSize(cbinfo.lp))
+				pThis->funcs[CRUI_ENTITY_CB](&cbinfo);
+			CRFreeStructure(cbinfo.lp, NULL);
 		}
 		return 0;
 	}
@@ -397,6 +405,16 @@ LRESULT AfterProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, CRWindowWin
 		{
 			cbinfo.status = CRUI_STAT_UP | CRUI_STAT_LEFT;
 			pThis->funcs[CRUI_MOUSE_CB](&cbinfo);
+			//
+			//
+			cbinfo.status = CRUI_STAT_UP | CRUI_STAT_LEFT;
+			point.x = cbinfo.x;
+			point.y = cbinfo.y;
+			cbinfo.lp = CRDynamicPtr();
+			pThis->inf.pgl->SeekEntity(point, cbinfo.lp);
+			if (CRStructureSize(cbinfo.lp))
+				pThis->funcs[CRUI_ENTITY_CB](&cbinfo);
+			CRFreeStructure(cbinfo.lp, NULL);
 		}
 		pThis->follow(CRFALSE);
 		pThis->inf.preClose = CRFALSE;
@@ -406,14 +424,36 @@ LRESULT AfterProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, CRWindowWin
 	{
 		cbinfo.status = CRUI_STAT_DOWN | CRUI_STAT_RIGHT;
 		if (cbinfo.y > 0)
+		{
 			pThis->funcs[CRUI_MOUSE_CB](&cbinfo);
+			//
+			cbinfo.status = CRUI_STAT_DOWN | CRUI_STAT_RIGHT;
+			point.x = cbinfo.x;
+			point.y = cbinfo.y;
+			cbinfo.lp = CRDynamicPtr();
+			pThis->inf.pgl->SeekEntity(point, cbinfo.lp);
+			if (CRStructureSize(cbinfo.lp))
+				pThis->funcs[CRUI_ENTITY_CB](&cbinfo);
+			CRFreeStructure(cbinfo.lp, NULL);
+		}
 		return 0;
 	}
 	case WM_RBUTTONUP:
 	{
 		cbinfo.status = CRUI_STAT_UP | CRUI_STAT_RIGHT;
 		if (cbinfo.y > 0)
+		{
 			pThis->funcs[CRUI_MOUSE_CB](&cbinfo);
+			//
+			cbinfo.status = CRUI_STAT_UP | CRUI_STAT_RIGHT;
+			point.x = cbinfo.x;
+			point.y = cbinfo.y;
+			cbinfo.lp = CRDynamicPtr();
+			pThis->inf.pgl->SeekEntity(point, cbinfo.lp);
+			if (CRStructureSize(cbinfo.lp))
+				pThis->funcs[CRUI_ENTITY_CB](&cbinfo);
+			CRFreeStructure(cbinfo.lp, NULL);
+		}
 		return 0;
 	}
 	case WM_KEYDOWN:
@@ -626,7 +666,7 @@ public:
 	virtual void clear();
 	virtual void Text(const char *text);
 	virtual void Move(CRINT32 x, CRINT32 y, CRUINT32 w, CRUINT32 h);
-	virtual void Entity(CRUIENTITY* pEntity);
+	virtual CRCODE Entity(CRUIENTITY* pEntity);
 
 private:
 	CRWINDOWINF inf;
@@ -695,10 +735,10 @@ void CRWindowLinux::Move(CRINT32 x, CRINT32 y, CRUINT32 w, CRUINT32 h)
 {
 }
 
-void CRWindowLinux::Entity(CRUIENTITY* pEntity)
+CRCODE CRWindowLinux::Entity(CRUIENTITY* pEntity)
 {
 	while (!inf.pgl) CRSleep(1);
-	inf.pgl->AddEntity(pEntity);
+	return inf.pgl->AddEntity(pEntity);
 }
 
 void ProcessMsg(CRWINDOWINF *inf)
@@ -708,6 +748,7 @@ void ProcessMsg(CRWINDOWINF *inf)
 	CRWindowLinux *pWindow = (CRWindowLinux *)(inf->pThis);
 	cbinfo.status = CRUI_STAT_OTHER;
 	cbinfo.window = pWindow->GetID();
+	CRPOINTU point;
 	while (!inf->onQuit)
 	{
 		XNextEvent(pDisplay, &event);
@@ -769,6 +810,15 @@ void ProcessMsg(CRWINDOWINF *inf)
 				else if (event.xbutton.button == 3)
 					cbinfo.status |= CRUI_STAT_RIGHT;
 				inf->cbk[CRUI_MOUSE_CB](&cbinfo);
+				//
+				cbinfo.status = CRUI_STAT_DOWN | CRUI_STAT_RIGHT;
+				point.x = cbinfo.x;
+				point.y = cbinfo.y;
+				cbinfo.lp = CRDynamicPtr();
+				inf->pgl->SeekEntity(point, cbinfo.lp);
+				if (CRStructureSize(cbinfo.lp))
+					inf->cbk[CRUI_ENTITY_CB](&cbinfo);
+				CRFreeStructure(cbinfo.lp, NULL);
 			}
 			else if (event.xbutton.button == 1)
 			{
@@ -802,6 +852,15 @@ void ProcessMsg(CRWINDOWINF *inf)
 				else if (event.xbutton.button == 3)
 					cbinfo.status |= CRUI_STAT_RIGHT;
 				inf->cbk[CRUI_MOUSE_CB](&cbinfo);
+				//
+				cbinfo.status = CRUI_STAT_UP | CRUI_STAT_RIGHT;
+				point.x = cbinfo.x;
+				point.y = cbinfo.y;
+				cbinfo.lp = CRDynamicPtr();
+				inf->pgl->SeekEntity(point, cbinfo.lp);
+				if (CRStructureSize(cbinfo.lp))
+					inf->cbk[CRUI_ENTITY_CB](&cbinfo);
+				CRFreeStructure(cbinfo.lp, NULL);
 			}
 			else if (event.xbutton.button == 1)
 			{
@@ -1076,6 +1135,5 @@ CRAPI CRCODE CRWindowEntityAdd(CRWINDOW window, CRUIENTITY* pEntity)
 	CRTreeSeek(windowPool, (CRLVOID*)&pWindow, window);
 	if (!pWindow || !pEntity)
 		return CRERR_INVALID;
-	pWindow->Entity(pEntity);
-	return 0;
+	return pWindow->Entity(pEntity);
 }

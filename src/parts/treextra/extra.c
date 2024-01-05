@@ -296,8 +296,11 @@ void _free_quad_node_(PQUADTREENODE node)
 
 void _free_quad_(PCRQUADINNER quad, DSCallback cbk)
 {
+	EnterCriticalSection(&(quad->pub.cs));
 	CRFreeStructure(quad->keyTree, cbk);
 	_free_quad_node_(quad->root);
+	LeaveCriticalSection(&(quad->pub.cs));
+	DeleteCriticalSection(&(quad->pub.cs));
 	free(quad);
 }
 
@@ -335,7 +338,7 @@ CRAPI CRTREEXTRA CRQuadtree(CRUINT64 w, CRUINT64 h, CRUINT8 max)
 CRAPI CRCODE CRQuadtreePushin(CRTREEXTRA tree, CRRECTU range, CRLVOID key)
 {
 	PCRQUADINNER pInner = tree;
-	if (!pInner || pInner->pub.type != QUA)
+	if (!pInner || pInner->pub.type != QUA || !CRTreeSeek(pInner->keyTree, NULL, (CRUINT64)key))
 		return CRERR_INVALID;
 	PCRQUADITEMS item = malloc(sizeof(CRQUADITEMS));
 	if (!item)
@@ -393,9 +396,13 @@ CRAPI CRCODE CRQuadtreeRemove(CRTREEXTRA tree, CRLVOID key)
 	PCRQUADINNER pInner = tree;
 	if (!pInner || pInner->pub.type != QUA)
 		return CRERR_INVALID;
+	EnterCriticalSection(&(pInner->pub.cs));
 	PCRQUADITEMS item;
 	if (CRTreeGet(pInner->keyTree, (CRLVOID*)&item, (CRUINT64)key))
+	{
+		LeaveCriticalSection(&(pInner->pub.cs));
 		return CRERR_NOTFOUND;
+	}
 	//命中结点之后开始移除并调整
 	PQUADTREENODE node = item->hook;
 	CRSTRUCTURE tmp = CRDynamicPtr();
@@ -408,6 +415,7 @@ CRAPI CRCODE CRQuadtreeRemove(CRTREEXTRA tree, CRLVOID key)
 	CRFreeStructure(node->items, NULL);
 	node->items = tmp;
 	_fix_quadnode_merge_(node, pInner->maxItem);
+	LeaveCriticalSection(&(pInner->pub.cs));
 	return 0;
 }
 
@@ -416,12 +424,16 @@ CRAPI CRCODE CRQuadtreeSearch(CRTREEXTRA tree, CRPOINTU p, CRSTRUCTURE dynPtrOut
 	PCRQUADINNER pInner = tree;
 	if (!pInner || pInner->pub.type != QUA)
 		return CRERR_INVALID;
+	EnterCriticalSection(&(pInner->pub.cs));
 	PQUADTREENODE node = pInner->root;
 	if (p.x < pInner->root->range.left
 		|| p.x > pInner->root->range.right
 		|| p.y < pInner->root->range.top
 		|| p.y > pInner->root->range.bottom)
+	{
+		LeaveCriticalSection(&(pInner->pub.cs));
 		return 0;
+	}
 	PCRQUADITEMS item;
 	CRUINT32 x_m, y_m;
 	while (1)
@@ -448,9 +460,26 @@ CRAPI CRCODE CRQuadtreeSearch(CRTREEXTRA tree, CRPOINTU p, CRSTRUCTURE dynPtrOut
 			else if (p.x <= x_m && p.y > y_m)
 				node = node->LB;
 		}
-		else return 0;
+		else break;
 	}
+	LeaveCriticalSection(&(pInner->pub.cs));
 	return 0;
+}
+
+CRAPI CRBOOL CRQuadTreeCheck(CRTREEXTRA tree, CRLVOID key)
+{
+	PCRQUADINNER pInner = tree;
+	if (pInner && pInner->pub.type == QUA)
+	{
+		EnterCriticalSection(&(pInner->pub.cs));
+		if (!CRTreeSeek(pInner->keyTree, NULL, (CRUINT64)key))
+		{
+			LeaveCriticalSection(&(pInner->pub.cs));
+			return CRTRUE;
+		}
+		LeaveCriticalSection(&(pInner->pub.cs));
+	}
+	return CRFALSE;
 }
 
 CRAPI CRCODE CRFreeTreextra(CRTREEXTRA pTree, DSCallback cbk)

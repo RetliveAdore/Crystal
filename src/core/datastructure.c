@@ -1098,50 +1098,51 @@ CRAPI CRUINT32 CRStructureSize(CRSTRUCTURE s)
 	return 0;
 }
 
-void _for_dyn_(CRSTRUCTURE s, DSCallback cal)
+void _for_dyn_(CRSTRUCTURE s, DSForeach cal, CRLVOID user)
 {
 	PCRDYN dyn = s;
 	if (dyn->feature == 0)
-		for (int i = 0; i < dyn->pub.total; i++) cal((CRLVOID)(CRUINT64)(dyn->arr[i]));
+		for (int i = 0; i < dyn->pub.total; i++) cal((CRLVOID)(CRUINT64)(dyn->arr[i]), user, i);
 	else if (dyn->feature == 1)
-		for (int i = 0; i < dyn->pub.total; i++) cal(dyn->ptr[i]);
+		for (int i = 0; i < dyn->pub.total; i++) cal(dyn->ptr[i], user, i);
 }
 
-void _for_tree_node_(PTREENODE node, DSCallback cal)
+void _for_tree_node_(PTREENODE node, DSForeach cal, CRLVOID user)
 {
 	if (node->left)
-		_for_tree_node_(node->left, cal);
-	cal(node->data);  //中序遍历当然是放在中间（这一点十分形象）
+		_for_tree_node_(node->left, cal, user);
+	cal(node->data, user, node->key);  //中序遍历当然是放在中间（这一点十分形象）
 	if (node->right)
-		_for_tree_node_(node->right, cal);
+		_for_tree_node_(node->right, cal, user);
 }
 
-void _for_tree_(CRSTRUCTURE s, DSCallback cal)
+void _for_tree_(CRSTRUCTURE s, DSForeach cal, CRLVOID user)
 {
 	PCRTREE tree = s;
 	if (tree->root)
-		_for_tree_node_(tree->root, cal);
+		_for_tree_node_(tree->root, cal, user);
 }
 
-void _for_linear_(CRSTRUCTURE s, DSCallback cal)
+void _for_linear_(CRSTRUCTURE s, DSForeach cal, CRLVOID user)
 {
 	PCRLINEAR lin = s;
 	if (!lin->hook)
 		return;
 	PLINEARNODE node = lin->hook, p = node;
 	node->prior->after = NULL;
+	CRUINT64 i = 0;
 	while (node->after)
 	{
 		p = node;
 		node = node->after;
-		cal(node->data);
+		cal(node->data, user, i++);
 		free(p);
 	}
-	cal(node->data);
+	cal(node->data, user, i);
 }
 
-typedef void (*_Struct_For_Each_)(CRSTRUCTURE s, DSCallback cal);
-void _for_nothing_(CRSTRUCTURE s, DSCallback cal) { return; }
+typedef void (*_Struct_For_Each_)(CRSTRUCTURE s, DSForeach cal, CRLVOID user);
+void _for_nothing_(CRSTRUCTURE s, DSForeach cal, CRLVOID user) { return; }
 
 const _Struct_For_Each_ forFuncs[] =
 {
@@ -1151,7 +1152,7 @@ const _Struct_For_Each_ forFuncs[] =
 	_for_nothing_
 };
 
-CRAPI CRCODE CRStructureForEach(CRSTRUCTURE s, DSCallback cal)
+CRAPI CRCODE CRStructureForEach(CRSTRUCTURE s, DSForeach cal, CRLVOID user)
 {
 	CRSTRUCTUREPUB* pub = s;
 	if (!pub || !cal)
@@ -1162,7 +1163,7 @@ CRAPI CRCODE CRStructureForEach(CRSTRUCTURE s, DSCallback cal)
 		LeaveCriticalSection(&(pub->cs));
 		return CRERR_INVALID;
 	}
-	forFuncs[pub->type](s, cal);
+	forFuncs[pub->type](s, cal, user);
 	LeaveCriticalSection(&(pub->cs));
 	return 0;
 }

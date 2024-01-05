@@ -48,6 +48,7 @@ typedef struct
 	CRUINT8 keycode;
 	//CRUI_STAT_XX
 	CRUINT8 status;
+	CRLVOID lp;
 }CRUIMSG, *PCRUIMSG;
 #define CRUI_STAT_OTHER 0x00
 #define CRUI_STAT_UP    0x01
@@ -88,7 +89,7 @@ typedef struct
 	CRCOLORF color;
 	CRUINT64 level;
 	CRUINT64 id;  //当产生控件消息时以key作为控件识别依据，ID一旦确定不可修改
-	CRUINT64 key; //控件排序的依据
+	CRUINT64 key; //控件排序的依据（我有一个使用哈希表直接排序的方法，性能可能不算最优，但在各种情况下性能稳定）
 	CRLVOID userdata;
 	/*
 	* 事件回调和渲染的开关时相互独立的

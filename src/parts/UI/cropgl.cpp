@@ -1,11 +1,11 @@
 ﻿#include <cropgl.hpp>
 #include <math.h>
+#include <crerrors.h>
 
 #define CRGL_RATIO 100.0f
 
 typedef struct entityNode
 {
-    CRLVOID pThis;
     CRUIENTITY* pEty;
     CRUIENTITY Ety;
 }CRUIENTITYNODE, *PCRUIENTITYNODE;
@@ -206,6 +206,7 @@ ccl_gl::ccl_gl(Display *pDisplay, XVisualInfo *vi, Window win)
     w = win;
     available = CRLinear();
     toremove = CRLinear();
+    emptylevel = CRLinear();
     levels = CRTree();
     quadTree = CRQuadtree(5000, 5000, 4);  //暂且使用这个大小，肯定会遇到不够的时候的
     context = glXCreateContext(dpy, vi, nullptr, GL_TRUE);
@@ -225,6 +226,7 @@ ccl_gl::~ccl_gl()
     glXDestroyContext(dpy, context);
     CRFreeStructure(available, NULL);
     CRFreeStructure(toremove, NULL);
+    CRFreeStructure(emptylevel, NULL);
     CRFreeStructure(levels, _free_levels_);
     CRFreeTreextra(quadTree, NULL);
 }
@@ -266,6 +268,7 @@ ccl_gl::ccl_gl(HDC hDc)
     _hDc = hDc;
     available = CRLinear();
     toremove = CRLinear();
+    emptylevel = CRLinear();
     levels = CRTree();
     quadTree = CRQuadtree(5000, 5000, 4);  //暂且使用这个大小，肯定会遇到不够的时候的
     SetupPixelFormat(_hDc);
@@ -283,6 +286,7 @@ ccl_gl::~ccl_gl()
     wglDeleteContext(_hRc);
     CRFreeStructure(available, NULL);
     CRFreeStructure(toremove, NULL);
+    CRFreeStructure(emptylevel, NULL);
     CRFreeStructure(levels, _free_levels_);
     CRFreeTreextra(quadTree, NULL);
 }
@@ -315,7 +319,7 @@ void _draw_titlebar_(CRINT32 _w, CRINT32 _h)
     _fill_port_(0.55, 0.9, 0.55);
     //
     glViewport(CRUI_TITLEBAR_PIXEL * 2 + CRUI_TITLEBAR_PIXEL / 4, _h + CRUI_TITLEBAR_PIXEL / 4, CRUI_TITLEBAR_PIXEL / 2, CRUI_TITLEBAR_PIXEL / 2);
-    _fill_port_(0.6, 0.65, 1.0);
+    _fill_port_(0.7, 0.6, 1.0);
     //
 }
 
@@ -323,26 +327,50 @@ void _draw_titlebar_(CRINT32 _w, CRINT32 _h)
 void _copy_entity_(CRUIENTITY* dst, CRUIENTITY* src)
 {
     dst->style = src->style;
+    //dst->sizeBox = src->sizeBox;
+    dst->stroke = src->stroke;
     dst->color = src->color;
     dst->key = src->key;
     dst->userdata = src->userdata;
 }
 
-void _paint_entities_(CRLVOID data)
+void _paint_entities_(CRLVOID data, CRLVOID user, CRUINT64 key)
 {
     PCRUIENTITYNODE node = (PCRUIENTITYNODE)data;
-    ccl_gl* pgl = (ccl_gl*)node->pThis;
+    ccl_gl* pgl = (ccl_gl*)user;
     if (node->pEty->invalid)
     {
-        //此时就需要移除这个结点了
-
-        return;
+        //此时就需要准备移除这个结点了
+        CRLinPut(pgl->toremove, (CRLVOID)key, 0);
+        CRUIENTITY* p = node->pEty;
+        delete node;
+        p->invalid = CRFALSE; //此时告诉用户，已经处理妥善，可以释放用户的pEty的内存了
+        return; 
     }
     if (node->pEty->update)
-        _copy_entity_(&(node->Ety), node->pEty);
-    if (node->pEty->moved)  //涉及到区域检索树的变换，此处尚未实现
     {
-
+        _copy_entity_(&(node->Ety), node->pEty);
+        node->pEty->update = CRFALSE;
+    }
+    if (node->pEty->enableEvent)
+    {
+        if (!node->Ety.enableEvent)
+        {
+            node->Ety.enableEvent = CRTRUE;
+            CRQuadtreePushin(pgl->quadTree, node->Ety.sizeBox, (CRLVOID)node->Ety.id);
+        }
+        else if (node->pEty->moved)  //涉及到区域检索树的变换
+        {
+            node->pEty->moved = CRFALSE;
+            node->Ety.sizeBox = node->pEty->sizeBox;
+            CRQuadtreeRemove(pgl->quadTree, (CRLVOID)node->Ety.id);
+            CRQuadtreePushin(pgl->quadTree, node->Ety.sizeBox, (CRLVOID)node->Ety.id);
+        }
+    }
+    else if (node->Ety.enableEvent)
+    {
+        node->Ety.enableEvent = CRFALSE;
+        CRQuadtreeRemove(pgl->quadTree, (CRLVOID)node->Ety.key);
     }
     if (!node->pEty->enableVision)
         return;
@@ -366,8 +394,8 @@ void _paint_entities_(CRLVOID data)
     {
         float w = (float)(node->Ety.sizeBox.right - node->Ety.sizeBox.left) * pgl->ratio;
         float h = (float)(node->Ety.sizeBox.bottom - node->Ety.sizeBox.top) * pgl->ratio;
-        float x = (node->Ety.sizeBox.left) + w * pgl->ratio - pgl->dx;
-        float y = -((node->Ety.sizeBox.top) + h * pgl->ratio - pgl->dy);
+        float x = node->Ety.sizeBox.left / 2 + w * pgl->ratio - pgl->dx;
+        float y = -(node->Ety.sizeBox.top / 2 + h * pgl->ratio - pgl->dy);
         w /= 2;
         h /= 2;
         if (node->Ety.style_s.type == CRUISTYLE_FILLED)
@@ -381,16 +409,24 @@ void _paint_entities_(CRLVOID data)
     }
 }
 
-void _paint_levels_(CRLVOID data)
+void _paint_levels_(CRLVOID data, CRLVOID user, CRUINT64 key)
 {
     CRSTRUCTURE entityPool = (CRSTRUCTURE)data;
-    CRStructureForEach(entityPool, _paint_entities_);
+    CRStructureForEach(entityPool, _paint_entities_, user);
     //然后是检查有没有需要移除的
     //如该层级的实体池空了，就移除该层级
-
+    CRUINT64 keyEty;
+    ccl_gl* pThis = (ccl_gl*)user;
+    while (!CRLinGet(pThis->toremove, (CRLVOID*)&keyEty, 0))
+        CRTreeGet(entityPool, NULL, keyEty);
+    if (!CRStructureSize(entityPool))
+    {
+        CRFreeStructure(entityPool, NULL);
+        CRLinPut(pThis->emptylevel, (CRLVOID)key, 0);
+    }
 }
 
-void ccl_gl::AddEntity(CRUIENTITY* pEntity)
+CRCODE ccl_gl::AddEntity(CRUIENTITY* pEntity)
 {
     pEntity->update = CRFALSE;
     pEntity->moved = CRFALSE;
@@ -399,7 +435,6 @@ void ccl_gl::AddEntity(CRUIENTITY* pEntity)
     //
     memcpy(&(node->Ety), pEntity, sizeof(CRUIENTITY));
     node->pEty = pEntity;
-    node->pThis = this;
     //
     CRSTRUCTURE entityPool;  //tree
     if (CRTreeSeek(levels, &entityPool, node->Ety.level) == CRERR_NOTFOUND)
@@ -408,14 +443,28 @@ void ccl_gl::AddEntity(CRUIENTITY* pEntity)
         if (!entityPool)
         {
             delete node;
-            return;
+            return CRERR_OUTOFMEM;
         }
         CRTreePut(levels, entityPool, node->Ety.level);
     }
-    CRUINT64 key;
-    if (CRLinGet(available, (CRLVOID*)&key, 0))
-        key = CurrentID++;
-    CRTreePut(entityPool, node, key);
+    CRUINT64 id;
+    if (CRLinGet(available, (CRLVOID*)&id, 0))
+        id = CurrentID++;
+    CRTreePut(entityPool, node, id);
+    if (CRQuadTreeCheck(quadTree, (CRLVOID)node->Ety.id))
+    {
+        CRThrowError(CRERR_CRUI_ENTITYCFLI, CRDES_CRUI_ENTITYCFLI);
+        return CRERR_CRUI_ENTITYCFLI;
+    }
+    if (node->Ety.enableEvent)
+        return CRQuadtreePushin(quadTree, node->Ety.sizeBox, (CRLVOID)node->Ety.id);
+    return 0;
+}
+
+void ccl_gl::SeekEntity(CRPOINTU point, CRSTRUCTURE dyn)
+{
+    CRUINT64 id = 0;
+    CRQuadtreeSearch(quadTree, point, dyn);
 }
 
 void ccl_gl::Ratio()
@@ -441,7 +490,10 @@ void ccl_gl::PaintAll()
     Resize(_w, _h);
     //
     //DrawDemo();
-    CRStructureForEach(levels, _paint_levels_);
+    CRStructureForEach(levels, _paint_levels_, this);
+    CRUINT64 key;
+    while (!CRLinGet(emptylevel, (CRLVOID*)&key, 0))
+        CRTreeGet(levels, NULL, key);
 #ifdef CR_WINDOWS
     SwapBuffers(_hDc);
 #elif defined CR_LINUX

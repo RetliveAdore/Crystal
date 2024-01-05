@@ -61,4 +61,7 @@
 #define CRERR_BASIC_TIMEOUT 1018
 #define CRDES_BASIC_TIMEOUT "server reply out of time"
 
+#define CRERR_CRUI_ENTITYCFLI 1019
+#define CRDES_CRUI_ENTITYCFLI "Entity key conflict! there's already a key same of you give"
+
 #endif  //include

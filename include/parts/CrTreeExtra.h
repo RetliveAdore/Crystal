@@ -37,6 +37,8 @@ CRAPI CRCODE CRQuadtreePushin(CRTREEXTRA tree, CRRECTU range, CRLVOID key);
 CRAPI CRCODE CRQuadtreeRemove(CRTREEXTRA tree, CRLVOID key);
 //选用动态数组作为输出承载是因为可能遇到元素重叠的情况，这时需要将其全部输出
 CRAPI CRCODE CRQuadtreeSearch(CRTREEXTRA tree, CRPOINTU p, CRSTRUCTURE dynPtrOut);
+//用于检查冲突，如果此key已被占用，返回CRTRUE，其余情况均返回CRFALSE
+CRAPI CRBOOL CRQuadTreeCheck(CRTREEXTRA tree, CRLVOID key);
 
 CRAPI CRCODE CRFreeTreextra(CRTREEXTRA pTree, DSCallback cbk);
 
