@@ -64,4 +64,7 @@
 #define CRERR_CRUI_ENTITYCFLI 1019
 #define CRDES_CRUI_ENTITYCFLI "Entity key conflict! there's already a key same of you give"
 
+#define CRERR_CROPENGL_LOAD 1020
+#define CRDEF_CROPENGL_LOAD "Failed load opengl, check your library files"
+
 #endif  //include

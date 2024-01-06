@@ -1,6 +1,8 @@
 ﻿#include <cropgl.hpp>
 #include <math.h>
 #include <crerrors.h>
+#include <stdio.h>
+#include <openglAPIs.h>
 
 #define CRGL_RATIO 100.0f
 
@@ -8,6 +10,10 @@ typedef struct entityNode
 {
     CRUIENTITY* pEty;
     CRUIENTITY Ety;
+    CRUINT32 VAO;
+    CRUINT32 VBO;
+    CRUINT8* arrayBuffer;  //使用arrayBuffer将顶点缓存起来就不用每次都去算了
+    CRUINT64 buffersize;
 }CRUIENTITYNODE, *PCRUIENTITYNODE;
 
 //一些常数
@@ -15,7 +21,82 @@ static const CRUINT32 n1 = 80;
 static const CRUINT32 n2 = 8;
 static const CRUINT32 nc = 3;
 
-void DrawRect(float x1, float y1, float x2, float y2, float level, float stroke, CRCOLORF* pColor)
+#ifdef CR_WINDOWS
+static HMODULE glInst = NULL;
+
+static void* crGetProcAddress(const char* name)
+{
+    PROC ret = wglGetProcAddress(name);
+    if (ret == NULL)
+    {
+        ret = GetProcAddress(glInst, name);
+    }
+    if (!ret)
+        printf("Failed load: %s\n", name);
+    return ret;
+}
+
+CRBOOL CROpenGLInit()
+{
+    if (!(glInst = LoadLibraryA("opengl32.dll")))
+        return CRFALSE;
+    return CRTRUE;
+}
+
+void CROpenGLUninit()
+{
+    FreeLibrary(glInst);
+}
+
+#elif defined CR_LINUX
+#include <dlfcn.h>
+void* glInst;
+static void* crGetProcAddress(const char* name)
+{
+    void* ret = (void*)glXGetProcAddress((const GLubyte*)name);
+    if (ret == NULL)
+    {
+        ret = (void*)dlsym(glInst, name);
+    }
+    if (!ret)
+        printf("Failed load: %s\n", name);
+    return ret;
+}
+#include <stdio.h>
+CRBOOL CROpenGLInit()
+{
+    glInst = dlopen("libOpenGL.so", RTLD_LAZY);
+    if (!glInst)
+        return CRFALSE;
+    return CRTRUE;
+}
+
+void CROpenGLUninit()
+{
+    dlclose(glInst);
+}
+
+#endif
+
+void _load_apis_(ccl_gl* pThis)
+{
+    pThis->glClearColor = (PGLCLEARCOLOR)crGetProcAddress("glClearColor");
+    pThis->glClear = (PGLCLEAR)crGetProcAddress("glClear");
+    pThis->glLoadIdentity = (PGLLOADIDENTITY)crGetProcAddress("glLoadIdentity");
+    pThis->glViewport = (PGLVIEWPORT)crGetProcAddress("glViewport");
+    pThis->glOrtho = (PGLORTHO)crGetProcAddress("glOrtho");
+    pThis->glDisable = (PGLDISABLE)crGetProcAddress("glDisable");
+    pThis->glEnable = (PGLENABLE)crGetProcAddress("glEnable");
+    pThis->glBlendFunc = (PGLBLENDFUNC)crGetProcAddress("glBlendFunc");
+    pThis->glGetString = (PGLGETSTRING)crGetProcAddress("glGetString");
+    pThis->glBegin = (PGLBEGIN)crGetProcAddress("glBegin");
+    pThis->glEnd = (PGLEND)crGetProcAddress("glEnd");
+    pThis->glColor3f = (PGLCOLOR3F)crGetProcAddress("glColor3f");
+    pThis->glColor4f = (PGLCOLOR4F)crGetProcAddress("glColor4f");
+    pThis->glVertex3f = (PGLVERTEX3F)crGetProcAddress("glVertex3f");
+}
+
+void ccl_gl::DrawRect(float x1, float y1, float x2, float y2, float level, float stroke, CRCOLORF* pColor)
 {
     float tmp;
     if (stroke < 0)
@@ -59,7 +140,7 @@ void DrawRect(float x1, float y1, float x2, float y2, float level, float stroke,
     glEnd();
 }
 
-void DrawElipse(float x, float y, float rx, float ry, float level, float stroke, CRCOLORF* pColor)
+void ccl_gl::DrawElipse(float x, float y, float rx, float ry, float level, float stroke, CRCOLORF* pColor)
 {
     if (rx < 0)
         rx = -rx;
@@ -95,7 +176,7 @@ void DrawElipse(float x, float y, float rx, float ry, float level, float stroke,
     glEnd();
 }
 
-void FillRect(float x1, float y1, float x2, float y2, float level, CRCOLORF* pColor)
+void ccl_gl::FillRect(float x1, float y1, float x2, float y2, float level, CRCOLORF* pColor)
 {
     level = -level;
     glColor4f(pColor->r, pColor->g, pColor->b, pColor->a);
@@ -107,7 +188,7 @@ void FillRect(float x1, float y1, float x2, float y2, float level, CRCOLORF* pCo
     glEnd();
 }
 
-void FillElipse(float x, float y, float rx, float ry, float level, CRCOLORF* pColor)
+void ccl_gl::FillElipse(float x, float y, float rx, float ry, float level, CRCOLORF* pColor)
 {
     if (rx < 0)
         rx = -rx;
@@ -129,14 +210,14 @@ void FillElipse(float x, float y, float rx, float ry, float level, CRCOLORF* pCo
     glEnd();
 }
 
-void DrawPoint(float x, float y, float level, float stroke, CRCOLORF* pColor)
+void ccl_gl::DrawPoint(float x, float y, float level, float stroke, CRCOLORF* pColor)
 {
     if (stroke < 0)
         stroke = -stroke;
     FillElipse(x, y, stroke / nc, stroke / nc, level, pColor);
 }
 
-void DrawLine(float x1, float y1, float x2, float y2, float level, float stroke, CRCOLORF* pColor)
+void ccl_gl::DrawLine(float x1, float y1, float x2, float y2, float level, float stroke, CRCOLORF* pColor)
 {
     if (stroke < 0)
         stroke = -stroke;
@@ -153,27 +234,13 @@ void DrawLine(float x1, float y1, float x2, float y2, float level, float stroke,
     glEnd();
 }
 
-void DrawDemo()
+void ccl_gl::InitGL()
 {
-    CRCOLORF color;
-    color.r = 1.0f;
-    color.g = 0.0f;
-    color.b = 0.0f;
-    color.a = 1.0;
-    DrawRect(100.0f, -100.0f, -100.0f, 100.0f, 3.0f, 5.0f, &color);
-    color.r = 1.0f;
-    color.g = 1.0f;
-    color.b = 1.0f;
-    color.a = 0.4;
-}
-
-void InitGL()
-{
-    glShadeModel(GL_SMOOTH);
+    //glShadeModel(GL_SMOOTH);
     //需要透明度的时候不要启用depth，否则某些情况下画面会被裁掉
     //不过如果按照从后往前的顺序来，就不会有问题
     glDisable(GL_DEPTH_TEST);
-    //glDisable(GL_DEPTH);
+    glDisable(GL_DEPTH);
     //启用透明度通道
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -183,6 +250,7 @@ void InitGL()
 
     //清屏黑
     glClearColor(0.0, 0.0, 0.0, 1.0);
+    printf("OpenGL Version: %s\n", glGetString(GL_VERSION));
 }
 
 void _free_entity_pool_(CRLVOID data)
@@ -197,39 +265,8 @@ void _free_levels_(CRLVOID data)
 
 #ifdef CR_LINUX
 #include <string.h>
-//查询线宽范围（PS:虚拟机里面只支持1-1的线宽）
+//查询线宽范围
 //static float range[2];
-
-ccl_gl::ccl_gl(Display *pDisplay, XVisualInfo *vi, Window win)
-{
-    dpy = pDisplay;
-    w = win;
-    available = CRLinear();
-    toremove = CRLinear();
-    emptylevel = CRLinear();
-    levels = CRTree();
-    quadTree = CRQuadtree(5000, 5000, 4);  //暂且使用这个大小，肯定会遇到不够的时候的
-    context = glXCreateContext(dpy, vi, nullptr, GL_TRUE);
-    glXMakeCurrent(dpy, w, context);
-    /*
-     * 创建环境完毕
-     */
-    InitGL();
-
-    //查询
-    //glGetFloatv(GL_LINE_WIDTH_RANGE, range);
-}
-
-ccl_gl::~ccl_gl()
-{
-    glXMakeCurrent(dpy, None, NULL);
-    glXDestroyContext(dpy, context);
-    CRFreeStructure(available, NULL);
-    CRFreeStructure(toremove, NULL);
-    CRFreeStructure(emptylevel, NULL);
-    CRFreeStructure(levels, _free_levels_);
-    CRFreeTreextra(quadTree, NULL);
-}
 
 #elif defined CR_WINDOWS
 
@@ -263,27 +300,47 @@ void SetupPixelFormat(HDC hDc)
     SetPixelFormat(hDc, nPixelFormat, &pfd);
 }
 
+#endif
+
+#ifdef CR_WINDOWS
 ccl_gl::ccl_gl(HDC hDc)
+#elif defined CR_LINUX
+ccl_gl::ccl_gl(Display* pDisplay, XVisualInfo* vi, Window win)
+#endif
 {
+#ifdef CR_WINDOWS
     _hDc = hDc;
+    SetupPixelFormat(_hDc);
+    _hRc = wglCreateContext(_hDc);
+    wglMakeCurrent(_hDc, _hRc);
+#elif defined CR_LINUX
+    dpy = pDisplay;
+    w = win;
+    context = glXCreateContext(dpy, vi, nullptr, GL_TRUE);
+    glXMakeCurrent(dpy, w, context);
+#endif
+    _load_apis_(this);
+    /*
+     * 创建环境完毕
+     */
+    InitGL();
+    //
     available = CRLinear();
     toremove = CRLinear();
     emptylevel = CRLinear();
     levels = CRTree();
     quadTree = CRQuadtree(5000, 5000, 4);  //暂且使用这个大小，肯定会遇到不够的时候的
-    SetupPixelFormat(_hDc);
-    _hRc = wglCreateContext(_hDc);
-    wglMakeCurrent(_hDc, _hRc);
-    /*
-     * 创建环境完毕
-     */
-    InitGL();
 }
 
 ccl_gl::~ccl_gl()
 {
+#ifdef CR_WINDOWS
     wglMakeCurrent(_hDc, NULL);
     wglDeleteContext(_hRc);
+#elif defined CR_LINUX
+    glXMakeCurrent(dpy, None, NULL);
+    glXDestroyContext(dpy, context);
+#endif
     CRFreeStructure(available, NULL);
     CRFreeStructure(toremove, NULL);
     CRFreeStructure(emptylevel, NULL);
@@ -291,9 +348,7 @@ ccl_gl::~ccl_gl()
     CRFreeTreextra(quadTree, NULL);
 }
 
-#endif
-
-void _fill_port_(float r, float g, float b)
+void ccl_gl::_fill_port_(float r, float g, float b)
 {
     glColor3f(r, g, b);
     glBegin(GL_QUADS);
@@ -304,7 +359,7 @@ void _fill_port_(float r, float g, float b)
     glEnd();
 }
 
-void _draw_titlebar_(CRINT32 _w, CRINT32 _h)
+void ccl_gl::_draw_titlebar_(CRINT32 _w, CRINT32 _h)
 {
     glLoadIdentity();
     glOrtho(-1.0f, 1.0f, -1.0f, 1.0f, 1.0f, -1.0f);
@@ -327,7 +382,6 @@ void _draw_titlebar_(CRINT32 _w, CRINT32 _h)
 void _copy_entity_(CRUIENTITY* dst, CRUIENTITY* src)
 {
     dst->style = src->style;
-    //dst->sizeBox = src->sizeBox;
     dst->stroke = src->stroke;
     dst->color = src->color;
     dst->key = src->key;
@@ -379,12 +433,12 @@ void _paint_entities_(CRLVOID data, CRLVOID user, CRUINT64 key)
     case CRUISHAPE_RECT:
     {
         if (node->Ety.style_s.type == CRUISTYLE_FILLED)
-            FillRect(
+            pgl->FillRect(
                 (node->Ety.sizeBox.left + 0.5) * pgl->ratio - pgl->dx, -(node->Ety.sizeBox.top * pgl->ratio - pgl->dy),
                 (node->Ety.sizeBox.right + 0.5) * pgl->ratio - pgl->dx, -(node->Ety.sizeBox.bottom * pgl->ratio - pgl->dy),
                 0, &node->Ety.color);
         else if (node->Ety.style_s.type == CRUISTYLE_COUNTOUR)
-            DrawRect(
+            pgl->DrawRect(
                 (node->Ety.sizeBox.left + 0.5) * pgl->ratio - pgl->dx, -(node->Ety.sizeBox.top * pgl->ratio - pgl->dy),
                 (node->Ety.sizeBox.right + 0.5) * pgl->ratio - pgl->dx, -(node->Ety.sizeBox.bottom * pgl->ratio - pgl->dy),
                 0, node->Ety.stroke * pgl->ratio, &node->Ety.color);
@@ -399,9 +453,9 @@ void _paint_entities_(CRLVOID data, CRLVOID user, CRUINT64 key)
         w /= 2;
         h /= 2;
         if (node->Ety.style_s.type == CRUISTYLE_FILLED)
-            FillElipse(x, y, w, h, 0, &node->Ety.color);
+            pgl->FillElipse(x, y, w, h, 0, &node->Ety.color);
         else if (node->Ety.style_s.type == CRUISTYLE_COUNTOUR)
-            DrawElipse(x, y, w, h, 0, node->Ety.stroke * pgl->ratio, &node->Ety.color);
+            pgl->DrawElipse(x, y, w, h, 0, node->Ety.stroke * pgl->ratio, &node->Ety.color);
         break;
     }
     default:
@@ -515,4 +569,20 @@ void ccl_gl::Resize(CRUINT32 x, CRUINT32 y)
         glOrtho(-CRGL_RATIO, CRGL_RATIO, -CRGL_RATIO * y / x, CRGL_RATIO * y / x, CRGL_RATIO / 10, -CRGL_RATIO * 100);
     }
     Ratio();
+}
+
+void _delete_vao_(CRLVOID data)
+{
+    
+}
+
+cr_vaovbo_pool::cr_vaovbo_pool()
+{
+    vaoPool = CRLinear();
+    vboPool = CRLinear();
+}
+
+cr_vaovbo_pool::~cr_vaovbo_pool()
+{
+    CRFreeStructure(vaoPool, _delete_vao_);
 }

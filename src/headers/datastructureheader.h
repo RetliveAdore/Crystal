@@ -1,4 +1,4 @@
-#ifndef _INCLUDE_CR_DATASTRUCTUREHEADER_H_
+ï»¿#ifndef _INCLUDE_CR_DATASTRUCTUREHEADER_H_
 #define _INCLUDE_CR_DATASTRUCTUREHEADER_H_
 
 #include <Crystal.h>
@@ -15,12 +15,12 @@
 #define DYN 0x00
 #define TRE 0x01
 #define LIN 0x02
-#define LOO 0x03  //µ±Ç°Î´Ê¹ÓÃ
+#define LOO 0x03  //å½“å‰æœªä½¿ç”¨
 #define QUA 0x04
 
 //
 
-//ÈİÁ¿ÏŞÖÆÊÇ512MB
+//å®¹é‡é™åˆ¶æ˜¯512MB
 #define DYN_MAX (sizeof(CRUINT8) << 29)
 #define DYN_MAX_PTR ((sizeof(CRUINT8) << 29) / sizeof(CRLVOID))
 
@@ -29,19 +29,19 @@
 #include <stdio.h>
 FILE* fp = NULL;
 
-//¹²ÓĞµÄÊı¾İÍ·
+//å…±æœ‰çš„æ•°æ®å¤´
 typedef struct
 {
 #ifdef CR_WINDOWS
-	CRITICAL_SECTION cs;  //È·±£¶àÏß³Ì°²È«
+	CRITICAL_SECTION cs;  //ç¡®ä¿å¤šçº¿ç¨‹å®‰å…¨
 #elif defined CR_LINUX
-	pthread_mutex_t cs;  //È·±£¶àÏß³Ì°²È«
+	pthread_mutex_t cs;  //ç¡®ä¿å¤šçº¿ç¨‹å®‰å…¨
 #endif
-	CRUINT8 type;  //ÓÃÓÚ±íÊ¾¾İ½á¹¹ÀàĞÍ
-	CRUINT32 total;  //ÓÃÓÚ±íÊ¾ÏÖÔÚÓĞ¶àÉÙ¸öÔªËØ
+	CRUINT8 type;  //ç”¨äºè¡¨ç¤ºæ®ç»“æ„ç±»å‹
+	CRUINT32 total;  //ç”¨äºè¡¨ç¤ºç°åœ¨æœ‰å¤šå°‘ä¸ªå…ƒç´ 
 } CRSTRUCTUREPUB;
 
-#ifdef CR_LINUX  //Ö±½ÓÊ¹³öÄÇÒ»ÕĞ£¬¼òµ¥·½±ãÓÖ¿ì½İ
+#ifdef CR_LINUX  //ç›´æ¥ä½¿å‡ºé‚£ä¸€æ‹›ï¼Œç®€å•æ–¹ä¾¿åˆå¿«æ·
 void InitializeCriticalSection(pthread_mutex_t* mt)
 {
 	pthread_mutex_init(mt, NULL);
@@ -97,7 +97,7 @@ typedef struct
 typedef struct linearnode
 {
 	CRLVOID data;
-	CRUINT64 key;  //ÓÃÀ´Ö§³ÖÅÅĞòµÄ
+	CRUINT64 key;  //ç”¨æ¥æ”¯æŒæ’åºçš„
 	struct linearnode* prior;
 	struct linearnode* after;
 }LINEARNODE, * PLINEARNODE;

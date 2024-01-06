@@ -1,6 +1,8 @@
 ﻿#include <Crystal.h>
 #include <parts/Crbasic.h>
 #include <parts/CrUI.h>
+#include <crerrors.h>
+#include <cropgl.hpp>
 
 // 全局变量
 static CRSTRUCTURE windowPool = nullptr;	  // tree
@@ -111,8 +113,6 @@ void CRWindow::SetID(CRWINDOW id)
 #ifdef CR_WINDOWS // Windows partition
 #include <Windows.h>
 #include <windowsx.h>
-#include <gl/GLU.h>
-#include <cropgl.hpp>
 
 void _move_thread_(CRLVOID data, CRTHREAD idThis);
 
@@ -572,6 +572,11 @@ CRAPI CRCODE CRUIInit()
 	CRCODE code = CRBasicInit();
 	if (code)
 		return code;
+	if (!CROpenGLInit())
+	{
+		CRThrowError(CRERR_CROPENGL_LOAD, CRDEF_CROPENGL_LOAD);
+		return CRERR_CROPENGL_LOAD;
+	}
 	if (!inited)
 	{
 		windowPool = CRTree();
@@ -595,6 +600,7 @@ CRAPI void CRUIUnInit()
 	windowPool = NULL;
 	availableID = NULL;
 	inited = CRFALSE;
+	CROpenGLUninit();
 	CRBasicUninit();
 }
 
@@ -620,7 +626,6 @@ CRAPI CRWINDOW CRCreateWindow(const char* title, CRUINT32 x, CRUINT32 y, CRUINT3
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
-#include <cropgl.hpp>
 #include <X11/cursorfont.h>
 
 Display *pDisplay;
@@ -1051,6 +1056,11 @@ CRAPI CRCODE CRUIInit()
 	CRCODE code = CRBasicInit();
 	if (code)
 		return code;
+	if (!CROpenGLInit())
+	{
+		CRThrowError(CRERR_CROPENGL_LOAD, CRDEF_CROPENGL_LOAD);
+		return CRERR_CROPENGL_LOAD;
+	}
 	if (!inited)
 	{
 		windowPool = CRTree();
@@ -1080,6 +1090,7 @@ CRAPI void CRUIUnInit()
 	XCloseDisplay(pDisplay);
 	rootWindow = 0;
 	inited = CRFALSE;
+	CROpenGLUninit();
 	CRBasicUninit();
 }
 
