@@ -393,7 +393,7 @@ CRAPI void* CRDynCopy(CRSTRUCTURE dyn, CRUINT32* size)
 
 CRAPI void CRDynFreeCopy(void* data)
 {
-	free(data);
+	if (data) free(data);
 }
 
 CRAPI CRCODE CRDynSetup(CRSTRUCTURE dyn, void* buffer, CRUINT32 size)

@@ -66,10 +66,12 @@ CRAPI void CRBasicUninit()
 {
 	if (!crInitedBasic)
 		return;
-	CRFreeStructure(threadTree, NULL);  //thread比较特殊，内存释放是由子线程自己负责的，所以说传入NULL
+	CRSTRUCTURE tmp = threadTree;
 	threadTree = NULL;
-	CRFreeStructure(availableIDthread, NULL);
+	CRFreeStructure(tmp, NULL);  //thread比较特殊，内存释放是由子线程自己负责的，所以说传入NULL
+	tmp = availableIDthread;
 	availableIDthread = NULL;
+	CRFreeStructure(tmp, NULL);
 	CurrentIDthread = (CRLVOID)1;
 	//
 	CRFreeStructure(socketTree, _inet_clear_callback_);

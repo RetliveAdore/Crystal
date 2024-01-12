@@ -1430,6 +1430,10 @@ typedef char GLcharARB;
 
 #endif
 
+typedef const GLubyte* (APIETYP PGLGETSTRING)(GLenum name);
+typedef GLuint (APIETYP PGLCREATESHADER)(GLenum shaderType);
+typedef GLuint (APIETYP PGLCREATEPROGRAM)(void);
+typedef GLuint (APIETYP PGLGETUNIFORMLOCATION)(GLuint program, const GLchar* name);
 typedef void (APIETYP PGLCLEARCOLOR)(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha);
 typedef void (APIETYP PGLCLEAR)(GLbitfield mask);
 typedef void (APIETYP PGLLOADIDENTITY)(void);
@@ -1438,11 +1442,33 @@ typedef void (APIETYP PGLORTHO)(GLdouble left, GLdouble right, GLdouble bottom, 
 typedef void (APIETYP PGLDISABLE)(GLenum cap);
 typedef void (APIETYP PGLENABLE)(GLenum cap);
 typedef void (APIETYP PGLBLENDFUNC)(GLenum sfactor, GLenum dfactor);
-typedef const GLubyte* (APIETYP PGLGETSTRING)(GLenum name);
 typedef void (APIETYP PGLBEGIN)(GLenum mode);
 typedef void (APIETYP PGLEND)(void);
 typedef void (APIETYP PGLCOLOR3F)(GLfloat red, GLfloat green, GLfloat blue);
 typedef void (APIETYP PGLCOLOR4F)(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha);
 typedef void (APIETYP PGLVERTEX3F)(GLfloat x, GLfloat y, GLfloat z);
+typedef void (APIETYP PGLGENVERTEXARRAYS)(GLsizei n, GLuint* arrays);
+typedef void (APIETYP PGLDELETEVERTEXARRAYS)(GLsizei n, const GLuint* arrays);
+typedef void (APIETYP PGLGENBUFFERS)(GLsizei n, GLuint* buffers);
+typedef void (APIETYP PGLDELETEBUFFERS)(GLsizei n, const GLuint* buffers);
+typedef void (APIETYP PGLBINDVERTEXARRAY)(GLuint arr);
+typedef void (APIETYP PGLBINDBUFFER)(GLenum target, GLuint buffer);
+typedef void (APIETYP PGLVERTEXATTRIBPOINTER)(GLuint index, GLuint size, GLenum type, GLboolean normalized, GLsizei stride, const GLvoid* pointer);
+typedef void (APIETYP PGLBUFFERDATA)(GLenum target, GLsizei ptrSize, const GLvoid* data, GLenum usage);
+typedef void (APIETYP PGLDELETESHADER)(GLuint shader);
+typedef void (APIETYP PGLSHADERSOURCE)(GLuint shader, GLsizei count, const GLchar* const* string, const GLint* length);
+typedef void (APIETYP PGLCOMPILESHADER)(GLuint shader);
+typedef void (APIETYP PGLATTACHSHADER)(GLuint program, GLuint shader);
+typedef void (APIETYP PGLDETACHSHADER)(GLuint program, GLuint shader);
+typedef void (APIETYP PGLLINKPROGRAM)(GLuint program);
+typedef void (APIETYP PGLDELETEPROGRAM)(GLuint program);
+typedef void (APIETYP PGLUSEPROGRAM)(GLuint program);
+typedef void (APIETYP PGLENABLEVERTEXATTRIBARRAY)(GLuint index);
+typedef void (APIETYP PGLDISABLEVERTEXATTRIBARRAY)(GLuint index);
+typedef void (APIETYP PGLDRAWARRAYS)(GLenum mode, GLint first, GLsizei count);
+typedef void (APIETYP PGLDRAWELEMENTS)(GLenum mode, GLsizei count, GLenum type, const void* indicies);
+typedef void (APIETYP PGLPOLYGONMODE)(GLenum face, GLenum mode);
+typedef void (APIETYP PGLUNIFORM2F)(GLint location, GLfloat v0, GLfloat v1);
+typedef void (APIETYP PGLUNIFORM4F)(GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
 
 #endif

@@ -8,6 +8,7 @@ void CRVersionOnExit()
 
 int main(int argc, char** argv)
 {
+	CRVer();
 	CRCODE code = 0;
 	if (code = CRInit() < 0)
 		return 1;

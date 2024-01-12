@@ -20,26 +20,35 @@
 CRBOOL CROpenGLInit();
 void CROpenGLUninit();
 
-// VAO: Vertex Buffer Object
-// VBO: 
+// VAO: Vertex Array Object
+// VBO: Vertex Buffer Object
 // EBO(IBO): Element(Index) Buffer Object
 //听说有些地方释放VAO会失败。。。
 //那干脆用一个池子来管理，遵循闲置VAO和VBO转让机制
-class cr_vaovbo_pool
+class cr_vertex_buffer_pool
 {
 public:
     unsigned int GetVAO();
-    unsigned int GetVBO();
+    unsigned int GetBuffer();
     CRCODE ReleaseVAO(unsigned int vao);
-    CRCODE ReleaseVBO(unsigned int vbo);
+    CRCODE ReleaseBuffer(unsigned int buffer);
 public:
-    cr_vaovbo_pool();
-    ~cr_vaovbo_pool();
-    cr_vaovbo_pool& operator=(const cr_vaovbo_pool&) = delete;
-    cr_vaovbo_pool(const cr_vaovbo_pool&) = delete;
+    cr_vertex_buffer_pool();
+    ~cr_vertex_buffer_pool();
+    cr_vertex_buffer_pool& operator=(const cr_vertex_buffer_pool&) = delete;
+    cr_vertex_buffer_pool(const cr_vertex_buffer_pool&) = delete;
+private:
+    void _load_apis_();
 private:
     CRSTRUCTURE vaoPool;
-    CRSTRUCTURE vboPool;
+    CRSTRUCTURE bufferPool;
+
+    //严重警告，下面的所有函数都不支持跨线程调用，否则会立即出现野指针错误
+    //一坨大便
+    CR_GLAPI PGLGENVERTEXARRAYS glGenVertexArrays;
+    CR_GLAPI PGLDELETEVERTEXARRAYS glDeleteVertexArrays;
+    CR_GLAPI PGLGENBUFFERS glGenBuffers;
+    CR_GLAPI PGLDELETEBUFFERS glDeleteBuffers;
 };
 
 //这些方法是从CCL里面来的，就不改名了
@@ -67,13 +76,15 @@ public:
 #endif
 private:
     void InitGL();
-    void DrawRect(float x1, float y1, float x2, float y2, float level, float stroke, CRCOLORF* pColor);
-    void FillRect(float x1, float y1, float x2, float y2, float level, CRCOLORF* pColor);
-    void DrawElipse(float x, float y, float rx, float ry, float level, float stroke, CRCOLORF* pColor);
-    void FillElipse(float x, float y, float rx, float ry, float level, CRCOLORF* pColor);
-    void DrawPoint(float x, float y, float level, float stroke, CRCOLORF* pColor);
     void DrawLine(float x1, float y1, float x2, float y2, float level, float stroke, CRCOLORF* pColor);
+    //
+    void GenRect(CRLVOID inner, float x1, float y1, float x2, float y2, float stroke, CRCOLORF* pColor);
+    void GenFilledRect(CRLVOID inner, float x1, float y1, float x2, float y2, CRCOLORF* pColor);
+    void GenElipse(CRLVOID inner, float x, float y, float rx, float ry, float stroke, CRCOLORF* pColor);
+    void GenFilledElipse(CRLVOID inner, float x, float y, float rx, float ry, CRCOLORF* pColor);
+    void GenLine(CRLVOID inner, float x1, float y1, float x2, float y2, float stroke, CRCOLORF* pColor);
     
+    void _load_apis_();
     void _fill_port_(float r, float g, float b);
     void _draw_titlebar_(CRINT32 _w, CRINT32 _h);
 private:
@@ -87,6 +98,16 @@ private:
     //OpenGL的环境
     GLXContext context;
 #endif
+    cr_vertex_buffer_pool* pool;
+    CRUINT32 VertexShader;
+    CRUINT32 FragmentShader;
+    CRUINT32 shaderProgram;
+    CRINT32 colorLocation;
+    CRINT32 aspLocation;
+    float aspx = 1.0;
+    float aspy = 1.0;
+
+    CR_GLAPI PGLGETSTRING glGetString;
     CR_GLAPI PGLCLEARCOLOR glClearColor;
     CR_GLAPI PGLCLEAR glClear;
     CR_GLAPI PGLLOADIDENTITY glLoadIdentity;
@@ -95,13 +116,33 @@ private:
     CR_GLAPI PGLDISABLE glDisable;
     CR_GLAPI PGLENABLE glEnable;
     CR_GLAPI PGLBLENDFUNC glBlendFunc;
-    CR_GLAPI PGLGETSTRING glGetString;
     CR_GLAPI PGLBEGIN glBegin;
     CR_GLAPI PGLEND glEnd;
     CR_GLAPI PGLCOLOR3F glColor3f;
     CR_GLAPI PGLCOLOR4F glColor4f;
     CR_GLAPI PGLVERTEX3F glVertex3f;
-    friend void _load_apis_(ccl_gl*);
+    CR_GLAPI PGLBINDVERTEXARRAY glBindVertexArray;
+    CR_GLAPI PGLBINDBUFFER glBindBuffer;
+    CR_GLAPI PGLVERTEXATTRIBPOINTER glVertexAttribPointer;
+    CR_GLAPI PGLBUFFERDATA glBufferData;
+    CR_GLAPI PGLCREATESHADER glCreateShader;
+    CR_GLAPI PGLDELETESHADER glDeleteShader;
+    CR_GLAPI PGLSHADERSOURCE glShaderSource;
+    CR_GLAPI PGLCOMPILESHADER glCompileShader;
+    CR_GLAPI PGLCREATEPROGRAM glCreateProgram;
+    CR_GLAPI PGLDELETEPROGRAM glDeleteProgram;
+    CR_GLAPI PGLATTACHSHADER glAttachShader;
+    CR_GLAPI PGLDETACHSHADER glDetachShader;
+    CR_GLAPI PGLLINKPROGRAM glLinkProgram;
+    CR_GLAPI PGLUSEPROGRAM glUseProgram;
+    CR_GLAPI PGLENABLEVERTEXATTRIBARRAY glEnableVertexAttribArray;
+    CR_GLAPI PGLDISABLEVERTEXATTRIBARRAY glDisableVertexAttribArray;
+    CR_GLAPI PGLDRAWARRAYS glDrawArrays;
+    CR_GLAPI PGLDRAWELEMENTS glDrawElements;
+    CR_GLAPI PGLPOLYGONMODE glPolygonMode;
+    CR_GLAPI PGLUNIFORM2F glUniform2f;
+    CR_GLAPI PGLUNIFORM4F glUniform4f;
+    CR_GLAPI PGLGETUNIFORMLOCATION glGetUniformLoaction;
 
     CRINT32 _w = 0, _h = 0;
     CRUINT32 CurrentID = 1;
@@ -123,6 +164,7 @@ private:
     CRTREEXTRA quadTree;
     friend void _paint_entities_(CRLVOID, CRLVOID, CRUINT64);
     friend void _paint_levels_(CRLVOID, CRLVOID, CRUINT64);
+    friend void _free_entity_pool_(CRLVOID);
 };
 
 #endif

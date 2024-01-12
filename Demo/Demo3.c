@@ -75,7 +75,7 @@ int Demo3(int argc, char** argv)
 	entity1.id = 1;
 	entity1.style_s.shape = CRUISHAPE_RECT;
 	entity1.style_s.type = CRUISTYLE_COUNTOUR;
-	entity1.stroke = 2.0f;
+	entity1.stroke = 5.0f;
 	entity1.sizeBox.left = 100;
 	entity1.sizeBox.top = 0;
 	entity1.sizeBox.right = 200;
@@ -93,7 +93,7 @@ int Demo3(int argc, char** argv)
 	entity2.id = 2;
 	entity2.style_s.shape = CRUISHAPE_ELIPSE;
 	entity2.style_s.type = CRUISTYLE_FILLED;
-	entity2.stroke = 2.0f;
+	entity2.stroke = 5.0f;
 	entity2.sizeBox.left = 0;
 	entity2.sizeBox.top = 0;
 	entity2.sizeBox.right = 100;

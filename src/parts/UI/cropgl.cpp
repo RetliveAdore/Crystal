@@ -2,9 +2,24 @@
 #include <math.h>
 #include <crerrors.h>
 #include <stdio.h>
+#include <string.h>
 #include <openglAPIs.h>
+#include <DefaultShaders.h>
 
-#define CRGL_RATIO 100.0f
+#define CRGL_RATIO 1.0f
+
+const CRUINT32 rectElement[24] =
+{
+    0, 1, 5, 0, 5, 4,
+    1, 2, 6, 1, 6, 5,
+    2, 3, 7, 2, 7, 6,
+    3, 0, 4, 3, 4, 7
+};
+
+const CRUINT32 rectFilledElement[6] =
+{
+    0, 1, 2, 0, 2, 3
+};
 
 typedef struct entityNode
 {
@@ -12,8 +27,13 @@ typedef struct entityNode
     CRUIENTITY Ety;
     CRUINT32 VAO;
     CRUINT32 VBO;
-    CRUINT8* arrayBuffer;  //使用arrayBuffer将顶点缓存起来就不用每次都去算了
-    CRUINT64 buffersize;
+    CRUINT32 EBO;  //顶点索引信息
+    float* arrayBuffer;  //使用arrayBuffer将顶点缓存起来就不用每次都去算了
+    CRUINT32 arraysize;
+    CRUINT32* elementBuffer;  //索引缓冲
+    CRUINT32 elementsize;
+    CRUINT32 elementcount;
+    ccl_gl* pThis;
 }CRUIENTITYNODE, *PCRUIENTITYNODE;
 
 //一些常数
@@ -78,143 +98,217 @@ void CROpenGLUninit()
 
 #endif
 
-void _load_apis_(ccl_gl* pThis)
+void ccl_gl::_load_apis_()
 {
-    pThis->glClearColor = (PGLCLEARCOLOR)crGetProcAddress("glClearColor");
-    pThis->glClear = (PGLCLEAR)crGetProcAddress("glClear");
-    pThis->glLoadIdentity = (PGLLOADIDENTITY)crGetProcAddress("glLoadIdentity");
-    pThis->glViewport = (PGLVIEWPORT)crGetProcAddress("glViewport");
-    pThis->glOrtho = (PGLORTHO)crGetProcAddress("glOrtho");
-    pThis->glDisable = (PGLDISABLE)crGetProcAddress("glDisable");
-    pThis->glEnable = (PGLENABLE)crGetProcAddress("glEnable");
-    pThis->glBlendFunc = (PGLBLENDFUNC)crGetProcAddress("glBlendFunc");
-    pThis->glGetString = (PGLGETSTRING)crGetProcAddress("glGetString");
-    pThis->glBegin = (PGLBEGIN)crGetProcAddress("glBegin");
-    pThis->glEnd = (PGLEND)crGetProcAddress("glEnd");
-    pThis->glColor3f = (PGLCOLOR3F)crGetProcAddress("glColor3f");
-    pThis->glColor4f = (PGLCOLOR4F)crGetProcAddress("glColor4f");
-    pThis->glVertex3f = (PGLVERTEX3F)crGetProcAddress("glVertex3f");
+    glGetString = (PGLGETSTRING)crGetProcAddress("glGetString");
+    glClearColor = (PGLCLEARCOLOR)crGetProcAddress("glClearColor");
+    glClear = (PGLCLEAR)crGetProcAddress("glClear");
+    glLoadIdentity = (PGLLOADIDENTITY)crGetProcAddress("glLoadIdentity");
+    glViewport = (PGLVIEWPORT)crGetProcAddress("glViewport");
+    glOrtho = (PGLORTHO)crGetProcAddress("glOrtho");
+    glDisable = (PGLDISABLE)crGetProcAddress("glDisable");
+    glEnable = (PGLENABLE)crGetProcAddress("glEnable");
+    glBlendFunc = (PGLBLENDFUNC)crGetProcAddress("glBlendFunc");
+    glBegin = (PGLBEGIN)crGetProcAddress("glBegin");
+    glEnd = (PGLEND)crGetProcAddress("glEnd");
+    glColor3f = (PGLCOLOR3F)crGetProcAddress("glColor3f");
+    glColor4f = (PGLCOLOR4F)crGetProcAddress("glColor4f");
+    glVertex3f = (PGLVERTEX3F)crGetProcAddress("glVertex3f");
+    glBindVertexArray = (PGLBINDVERTEXARRAY)crGetProcAddress("glBindVertexArray");
+    glBindBuffer = (PGLBINDBUFFER)crGetProcAddress("glBindBuffer");
+    glVertexAttribPointer = (PGLVERTEXATTRIBPOINTER)crGetProcAddress("glVertexAttribPointer");
+    glBufferData = (PGLBUFFERDATA)crGetProcAddress("glBufferData");
+    glCreateShader = (PGLCREATESHADER)crGetProcAddress("glCreateShader");
+    glDeleteShader = (PGLDELETESHADER)crGetProcAddress("glDeleteShader");
+    glShaderSource = (PGLSHADERSOURCE)crGetProcAddress("glShaderSource");
+    glCompileShader = (PGLCOMPILESHADER)crGetProcAddress("glCompileShader");
+    glCreateProgram = (PGLCREATEPROGRAM)crGetProcAddress("glCreateProgram");
+    glAttachShader = (PGLATTACHSHADER)crGetProcAddress("glAttachShader");
+    glDetachShader = (PGLDETACHSHADER)crGetProcAddress("glDetachShader");
+    glLinkProgram = (PGLLINKPROGRAM)crGetProcAddress("glLinkProgram");
+    glDeleteProgram = (PGLDELETEPROGRAM)crGetProcAddress("glDeleteProgram");
+    glUseProgram = (PGLUSEPROGRAM)crGetProcAddress("glUseProgram");
+    glEnableVertexAttribArray = (PGLENABLEVERTEXATTRIBARRAY)crGetProcAddress("glEnableVertexAttribArray");
+    glDisableVertexAttribArray = (PGLDISABLEVERTEXATTRIBARRAY)crGetProcAddress("glDisableVertexAttribArray");
+    glDrawArrays = (PGLDRAWARRAYS)crGetProcAddress("glDrawArrays");
+    glDrawElements = (PGLDRAWELEMENTS)crGetProcAddress("glDrawElements");
+    glPolygonMode = (PGLPOLYGONMODE)crGetProcAddress("glPolygonMode");
+    glUniform4f = (PGLUNIFORM4F)crGetProcAddress("glUniform4f");
+    glUniform2f = (PGLUNIFORM2F)crGetProcAddress("glUniform2f");
+    glGetUniformLoaction = (PGLGETUNIFORMLOCATION)crGetProcAddress("glGetUniformLocation");
 }
 
-void ccl_gl::DrawRect(float x1, float y1, float x2, float y2, float level, float stroke, CRCOLORF* pColor)
+void ccl_gl::GenRect(CRLVOID inner, float x1, float y1, float x2, float y2, float stroke, CRCOLORF* pColor)
 {
-    float tmp;
-    if (stroke < 0)
-        stroke = -stroke;
-    if (x1 > x2)
+    PCRUIENTITYNODE node = (PCRUIENTITYNODE)inner;
+    if (node->arraysize != sizeof(float) * 24)
     {
-        tmp = x2;
-        x2 = x1;
-        x1 = tmp;
+        if (node->arrayBuffer) delete[] node->arrayBuffer;
+        node->arrayBuffer = new float[24];  //x,y,z
+        node->arraysize = sizeof(float) * 24;
     }
-    if (y1 > y2)
+    if (node->elementsize != sizeof(CRUINT32) * 24)
     {
-        tmp = y2;
-        y2 = y1;
-        y1 = tmp;
+        if (node->elementBuffer) delete[] node->elementBuffer;
+        node->elementBuffer = new CRUINT32[24];
+        node->elementsize = sizeof(CRUINT32) * 24;
+        node->elementcount = 24;
     }
-    level = -level;
-    stroke /= 2;
-
-    glColor4f(pColor->r, pColor->g, pColor->b, pColor->a);
-    glBegin(GL_QUADS);
-    glVertex3f(x1 + stroke, y1 + stroke, level);
-    glVertex3f(x1 - stroke, y1 - stroke, level);
-    glVertex3f(x1 - stroke, y2 + stroke, level);
-    glVertex3f(x1 + stroke, y2 - stroke, level);
-
-    glVertex3f(x1 + stroke, y1 + stroke, level);
-    glVertex3f(x1 - stroke, y1 - stroke, level);
-    glVertex3f(x2 + stroke, y1 - stroke, level);
-    glVertex3f(x2 - stroke, y1 + stroke, level);
-
-    glVertex3f(x2 + stroke, y2 + stroke, level);
-    glVertex3f(x2 - stroke, y2 - stroke, level);
-    glVertex3f(x1 + stroke, y2 - stroke, level);
-    glVertex3f(x1 - stroke, y2 + stroke, level);
-
-    glVertex3f(x2 + stroke, y2 + stroke, level);
-    glVertex3f(x2 - stroke, y2 - stroke, level);
-    glVertex3f(x2 - stroke, y1 + stroke, level);
-    glVertex3f(x2 + stroke, y1 - stroke, level);
-    glEnd();
+    x1 = (x1 + 0.5) * ratio - dx;
+    x2 = (x2 + 0.5) * ratio - dx;
+    y1 = -(y1 * ratio - dy);
+    y2 = -(y2 * ratio - dy);
+    stroke = stroke * ratio / 2;
+    node->arrayBuffer[0] = x1 - stroke;
+    node->arrayBuffer[1] = y1 + stroke;
+    node->arrayBuffer[2] = 0.0f;
+    node->arrayBuffer[3] = x1 - stroke;
+    node->arrayBuffer[4] = y2 - stroke;
+    node->arrayBuffer[5] = 0.0f;
+    node->arrayBuffer[6] = x2 + stroke;
+    node->arrayBuffer[7] = y2 - stroke;
+    node->arrayBuffer[8] = 0.0f;
+    node->arrayBuffer[9] = x2 + stroke;
+    node->arrayBuffer[10] = y1 + stroke;
+    node->arrayBuffer[11] = 0.0f;
+    //
+    node->arrayBuffer[12] = x1 + stroke;
+    node->arrayBuffer[13] = y1 - stroke;
+    node->arrayBuffer[14] = 0.0f;
+    node->arrayBuffer[15] = x1 + stroke;
+    node->arrayBuffer[16] = y2 + stroke;
+    node->arrayBuffer[17] = 0.0f;
+    node->arrayBuffer[18] = x2 - stroke;
+    node->arrayBuffer[19] = y2 + stroke;
+    node->arrayBuffer[20] = 0.0f;
+    node->arrayBuffer[21] = x2 - stroke;
+    node->arrayBuffer[22] = y1 - stroke;
+    node->arrayBuffer[23] = 0.0f;
+    //
+    memcpy(node->elementBuffer, rectElement, node->elementsize);
 }
 
-void ccl_gl::DrawElipse(float x, float y, float rx, float ry, float level, float stroke, CRCOLORF* pColor)
+void ccl_gl::GenFilledRect(CRLVOID inner, float x1, float y1, float x2, float y2, CRCOLORF* pColor)
 {
-    if (rx < 0)
-        rx = -rx;
-    if (ry < 0)
-        ry = -ry;
-    if (stroke < 0)
-        stroke = -stroke;
-    level = -level;
-    int n = rx * nc + ry * nc;
-    if (n > n1)
-        n = n1;
-    else if (n < n2)
-        n = n2;
-    stroke /= 2;
-
-    glColor4f(pColor->r, pColor->g, pColor->b, pColor->a);
-    glBegin(GL_QUADS);
-    float lr_x = rx + stroke, sr_x = rx - stroke;
-    float lr_y = ry + stroke, sr_y = ry - stroke;
-    float tx_1 = x, tx_2 = x;
-    float ty_1 = lr_y + y, ty_2 = sr_y + y;
-    for (int i = 0; i <= n; i++)
+    PCRUIENTITYNODE node = (PCRUIENTITYNODE)inner;
+    if (node->arraysize != sizeof(float) * 12)
     {
-        glVertex3f(tx_1, ty_1, level);
-        glVertex3f(tx_2, ty_2, level);
-        tx_1 = sin(i * M_PI * 2 / n) * sr_x + x;
-        tx_2 = sin(i * M_PI * 2 / n) * lr_x + x;
-        ty_1 = cos(i * M_PI * 2 / n) * sr_y + y;
-        ty_2 = cos(i * M_PI * 2 / n) * lr_y + y;
-        glVertex3f(tx_2, ty_2, level);
-        glVertex3f(tx_1, ty_1, level);
+        if (node->arrayBuffer) delete[] node->arrayBuffer;
+        node->arrayBuffer = new float[12];  //x,y,z
+        node->arraysize = sizeof(float) * 12;
     }
-    glEnd();
-}
-
-void ccl_gl::FillRect(float x1, float y1, float x2, float y2, float level, CRCOLORF* pColor)
-{
-    level = -level;
-    glColor4f(pColor->r, pColor->g, pColor->b, pColor->a);
-    glBegin(GL_QUADS);
-    glVertex3f(x1, y1, level);
-    glVertex3f(x1, y2, level);
-    glVertex3f(x2, y2, level);
-    glVertex3f(x2, y1, level);
-    glEnd();
-}
-
-void ccl_gl::FillElipse(float x, float y, float rx, float ry, float level, CRCOLORF* pColor)
-{
-    if (rx < 0)
-        rx = -rx;
-    if (ry < 0)
-        ry = -ry;
-    level = -level;
-    int n = rx * nc + ry * nc;
-    if (n > n1)
-        n = n1;
-    else if (n < n2)
-        n = n2;
-
-    glColor4f(pColor->r, pColor->g, pColor->b, pColor->a);
-    glBegin(GL_POLYGON);
-    for (int i = 0; i < n; i++)
+    if (node->elementsize != sizeof(CRUINT32) * 6)
     {
-        glVertex3f(sin(i * M_PI * 2 / n) * rx + x, cos(i * M_PI * 2 / n) * ry + y, level);
+        if (node->elementBuffer) delete[] node->elementBuffer;
+        node->elementBuffer = new CRUINT32[6];
+        node->elementsize = sizeof(CRUINT32) * 6;
+        node->elementcount = 6;
     }
-    glEnd();
+    x1 = (x1 + 0.5) * ratio - dx;
+    x2 = (x2 + 0.5) * ratio - dx;
+    y1 = -(y1 * ratio - dy);
+    y2 = -(y2 * ratio - dy);
+    //
+    node->arrayBuffer[0] = x1;
+    node->arrayBuffer[1] = y1;
+    node->arrayBuffer[2] = 0.0f;
+    node->arrayBuffer[3] = x1;
+    node->arrayBuffer[4] = y2;
+    node->arrayBuffer[5] = 0.0f;
+    node->arrayBuffer[6] = x2;
+    node->arrayBuffer[7] = y2;
+    node->arrayBuffer[8] = 0.0f;
+    node->arrayBuffer[9] = x2;
+    node->arrayBuffer[10] = y1;
+    node->arrayBuffer[11] = 0.0f;
+    //
+    memcpy(node->elementBuffer, rectFilledElement, node->elementsize);
 }
 
-void ccl_gl::DrawPoint(float x, float y, float level, float stroke, CRCOLORF* pColor)
+void ccl_gl::GenElipse(CRLVOID inner, float x, float y, float rx, float ry, float stroke, CRCOLORF* pColor)
 {
-    if (stroke < 0)
-        stroke = -stroke;
-    FillElipse(x, y, stroke / nc, stroke / nc, level, pColor);
+    PCRUIENTITYNODE node = (PCRUIENTITYNODE)inner;
+    if (node->arraysize != sizeof(float) * 192)
+    {
+        if (node->arrayBuffer) delete[] node->arrayBuffer;
+        node->arrayBuffer = new float[192];  //x,y,z
+        node->arraysize = sizeof(float) * 192;
+    }
+    if (node->elementsize != sizeof(CRUINT32) * 192)  //总共64个三角形
+    {
+        if (node->elementBuffer) delete[] node->elementBuffer;
+        node->elementBuffer = new CRUINT32[192];
+        node->elementsize = sizeof(CRUINT32) * 192;
+        node->elementcount = 192;
+    }
+    x = x * ratio - dx;
+    y = -(y * ratio - dy);
+    rx *= ratio;
+    ry *= -ratio;
+    stroke = stroke * ratio / 2;
+    float l_x = rx + stroke;
+    float l_y = ry - stroke;
+    float s_x = rx - stroke;
+    float s_y = ry + stroke;
+    for (int i = 0; i < 32; i++)  //48个三角形
+    {
+        node->arrayBuffer[i * 6] = sin(i * M_PI * 2 / 32) * l_x + x;
+        node->arrayBuffer[i * 6 + 1] = cos(i * M_PI * 2 / 32) * l_y + y;
+        node->arrayBuffer[i * 6 + 2] = 0.0f;
+        node->arrayBuffer[i * 6 + 3] = sin(i * M_PI * 2 / 32) * s_x + x;
+        node->arrayBuffer[i * 6 + 4] = cos(i * M_PI * 2 / 32) * s_y + y;
+        node->arrayBuffer[i * 6 + 5] = 0.0f;
+    }
+    for (int i = 0; i < 32; i++)
+    {
+        node->elementBuffer[i * 6] = i * 2;
+        node->elementBuffer[i * 6 + 1] = i * 2 + 3;
+        node->elementBuffer[i * 6 + 2] = i * 2 + 1;
+        node->elementBuffer[i * 6 + 3] = i * 2;
+        node->elementBuffer[i * 6 + 4] = i * 2 + 2;
+        node->elementBuffer[i * 6 + 5] = i * 2 + 3;
+    }
+    node->elementBuffer[187] = 1;
+    node->elementBuffer[190] = 0;
+    node->elementBuffer[191] = 1;
+}
+
+void ccl_gl::GenFilledElipse(CRLVOID inner, float x, float y, float rx, float ry, CRCOLORF* pColor)
+{
+    PCRUIENTITYNODE node = (PCRUIENTITYNODE)inner;
+    if (node->arraysize != sizeof(float) * 99)
+    {
+        if (node->arrayBuffer) delete[] node->arrayBuffer;
+        node->arrayBuffer = new float[99];  //x,y,z
+        node->arraysize = sizeof(float) * 99;
+    }
+    if (node->elementsize != sizeof(CRUINT32) * 96)  //总共32个三角形，每一象限8个
+    {
+        if (node->elementBuffer) delete[] node->elementBuffer;
+        node->elementBuffer = new CRUINT32[96];
+        node->elementsize = sizeof(CRUINT32) * 96;
+        node->elementcount = 96;
+    }
+    x = x * ratio - dx;
+    y = -(y * ratio - dy);
+    rx *= ratio;
+    ry *= -ratio;
+    node->arrayBuffer[0] = x;
+    node->arrayBuffer[1] = y;
+    node->arrayBuffer[2] = 0.0f;
+    for (int i = 1; i < 33; i++)  //24个三角形
+    {
+        node->arrayBuffer[i * 3] = sin(i * M_PI * 2 / 32) * rx + x;
+        node->arrayBuffer[i * 3 + 1] = cos(i * M_PI * 2 / 32) * ry + y;
+        node->arrayBuffer[i * 3 + 2] = 0.0f;
+    }
+    for (int i = 0; i < 32; i++)
+    {
+        node->elementBuffer[i * 3] = 0;
+        node->elementBuffer[i * 3 + 1] = i + 1;
+        node->elementBuffer[i * 3 + 2] = i + 2;
+    }
+    node->elementBuffer[95] = 1;
 }
 
 void ccl_gl::DrawLine(float x1, float y1, float x2, float y2, float level, float stroke, CRCOLORF* pColor)
@@ -245,8 +339,6 @@ void ccl_gl::InitGL()
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     //
-    glDisable(GL_LINE_SMOOTH);
-    glDisable(GL_POLYGON_SMOOTH);
 
     //清屏黑
     glClearColor(0.0, 0.0, 0.0, 1.0);
@@ -255,7 +347,13 @@ void ccl_gl::InitGL()
 
 void _free_entity_pool_(CRLVOID data)
 {
-    delete (PCRUIENTITYNODE)data;
+    PCRUIENTITYNODE node = (PCRUIENTITYNODE)data;
+    node->pThis->pool->ReleaseVAO(node->VAO);
+    node->pThis->pool->ReleaseBuffer(node->VBO);
+    node->pThis->pool->ReleaseBuffer(node->EBO);
+    delete node->arrayBuffer;
+    delete node->elementBuffer;
+    delete node;
 }
 
 void _free_levels_(CRLVOID data)
@@ -319,7 +417,22 @@ ccl_gl::ccl_gl(Display* pDisplay, XVisualInfo* vi, Window win)
     context = glXCreateContext(dpy, vi, nullptr, GL_TRUE);
     glXMakeCurrent(dpy, w, context);
 #endif
-    _load_apis_(this);
+    _load_apis_();
+    pool = new cr_vertex_buffer_pool();
+    VertexShader = glCreateShader(GL_VERTEX_SHADER);
+    FragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(VertexShader, 1, &CrVertexShaderSource1, NULL);
+    glShaderSource(FragmentShader, 1, &CRFragmentShaderSource1, NULL);
+    glCompileShader(VertexShader);
+    glCompileShader(FragmentShader);  //所有的UI实体绘制都使用相同的简单shader
+
+    shaderProgram = glCreateProgram();
+    glAttachShader(shaderProgram, VertexShader);
+    glAttachShader(shaderProgram, FragmentShader);
+    glLinkProgram(shaderProgram);
+
+    colorLocation = glGetUniformLoaction(shaderProgram, "paintColor");
+    aspLocation = glGetUniformLoaction(shaderProgram, "asp");
     /*
      * 创建环境完毕
      */
@@ -341,11 +454,19 @@ ccl_gl::~ccl_gl()
     glXMakeCurrent(dpy, None, NULL);
     glXDestroyContext(dpy, context);
 #endif
+    //
     CRFreeStructure(available, NULL);
     CRFreeStructure(toremove, NULL);
     CRFreeStructure(emptylevel, NULL);
     CRFreeStructure(levels, _free_levels_);
     CRFreeTreextra(quadTree, NULL);
+    //
+    glDetachShader(shaderProgram, VertexShader);
+    glDetachShader(shaderProgram, FragmentShader);  //解绑然后分别释放
+    glDeleteProgram(shaderProgram);
+    glDeleteShader(VertexShader);
+    glDeleteShader(FragmentShader);
+    delete pool;
 }
 
 void ccl_gl::_fill_port_(float r, float g, float b)
@@ -392,6 +513,7 @@ void _paint_entities_(CRLVOID data, CRLVOID user, CRUINT64 key)
 {
     PCRUIENTITYNODE node = (PCRUIENTITYNODE)data;
     ccl_gl* pgl = (ccl_gl*)user;
+    //
     if (node->pEty->invalid)
     {
         //此时就需要准备移除这个结点了
@@ -426,41 +548,31 @@ void _paint_entities_(CRLVOID data, CRLVOID user, CRUINT64 key)
         node->Ety.enableEvent = CRFALSE;
         CRQuadtreeRemove(pgl->quadTree, (CRLVOID)node->Ety.key);
     }
-    if (!node->pEty->enableVision)
-        return;
-    switch (node->Ety.style_s.shape)
+    //这是初始化VBO和EBO唯一的办法，没有办法跨线程生成VBO之类的
+    //考虑转战vulkan了
+    //OpenGL在这些方面就是一坨大便
+    if (!node->VAO)
     {
-    case CRUISHAPE_RECT:
+        node->VAO = pgl->pool->GetVAO();
+        pgl->glBindVertexArray(node->VAO);
+        node->VBO = pgl->pool->GetBuffer();
+        pgl->glBindBuffer(GL_ARRAY_BUFFER, node->VBO);
+        pgl->glBufferData(GL_ARRAY_BUFFER, node->arraysize, node->arrayBuffer, GL_STATIC_DRAW);
+        pgl->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        pgl->glEnableVertexAttribArray(0);
+        node->EBO = pgl->pool->GetBuffer();
+        pgl->glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, node->EBO);
+        pgl->glBufferData(GL_ELEMENT_ARRAY_BUFFER, node->elementsize, node->elementBuffer, GL_STATIC_DRAW);
+    }
+    pgl->glBindVertexArray(node->VAO);
+    if (node->pEty->enableVision)
     {
-        if (node->Ety.style_s.type == CRUISTYLE_FILLED)
-            pgl->FillRect(
-                (node->Ety.sizeBox.left + 0.5) * pgl->ratio - pgl->dx, -(node->Ety.sizeBox.top * pgl->ratio - pgl->dy),
-                (node->Ety.sizeBox.right + 0.5) * pgl->ratio - pgl->dx, -(node->Ety.sizeBox.bottom * pgl->ratio - pgl->dy),
-                0, &node->Ety.color);
-        else if (node->Ety.style_s.type == CRUISTYLE_COUNTOUR)
-            pgl->DrawRect(
-                (node->Ety.sizeBox.left + 0.5) * pgl->ratio - pgl->dx, -(node->Ety.sizeBox.top * pgl->ratio - pgl->dy),
-                (node->Ety.sizeBox.right + 0.5) * pgl->ratio - pgl->dx, -(node->Ety.sizeBox.bottom * pgl->ratio - pgl->dy),
-                0, node->Ety.stroke * pgl->ratio, &node->Ety.color);
-        break;
+        //pgl->glPolygonMode(GL_FRONT, GL_LINE);  //polygon mode 可以指定成画线画点之类的
+        pgl->glUniform2f(pgl->aspLocation, pgl->aspx, pgl->aspy);
+        pgl->glUniform4f(pgl->colorLocation, node->Ety.color.r, node->Ety.color.g, node->Ety.color.b, node->Ety.color.a);
+        pgl->glDrawElements(GL_TRIANGLES, node->elementcount, GL_UNSIGNED_INT, 0);
     }
-    case CRUISHAPE_ELIPSE:
-    {
-        float w = (float)(node->Ety.sizeBox.right - node->Ety.sizeBox.left) * pgl->ratio;
-        float h = (float)(node->Ety.sizeBox.bottom - node->Ety.sizeBox.top) * pgl->ratio;
-        float x = node->Ety.sizeBox.left / 2 + w * pgl->ratio - pgl->dx;
-        float y = -(node->Ety.sizeBox.top / 2 + h * pgl->ratio - pgl->dy);
-        w /= 2;
-        h /= 2;
-        if (node->Ety.style_s.type == CRUISTYLE_FILLED)
-            pgl->FillElipse(x, y, w, h, 0, &node->Ety.color);
-        else if (node->Ety.style_s.type == CRUISTYLE_COUNTOUR)
-            pgl->DrawElipse(x, y, w, h, 0, node->Ety.stroke * pgl->ratio, &node->Ety.color);
-        break;
-    }
-    default:
-        break;
-    }
+    pgl->glBindVertexArray(0);
 }
 
 void _paint_levels_(CRLVOID data, CRLVOID user, CRUINT64 key)
@@ -489,6 +601,51 @@ CRCODE ccl_gl::AddEntity(CRUIENTITY* pEntity)
     //
     memcpy(&(node->Ety), pEntity, sizeof(CRUIENTITY));
     node->pEty = pEntity;
+    node->pThis = this;
+    node->VAO = 0;
+    node->VBO = 0;
+    node->EBO = 0;
+    node->arrayBuffer = nullptr;
+    node->elementBuffer = nullptr;
+    node->arraysize = 0;
+    node->elementsize = 0;
+    //生成顶点数组
+    switch (node->Ety.style_s.shape)
+    {
+    case CRUISHAPE_RECT:
+    {
+        if (node->Ety.style_s.type == CRUISTYLE_FILLED)
+        {
+            GenFilledRect(node, node->Ety.sizeBox.left, node->Ety.sizeBox.top, node->Ety.sizeBox.right, node->Ety.sizeBox.bottom,
+                &node->Ety.color);
+        }
+        else
+        {
+            GenRect(node, node->Ety.sizeBox.left, node->Ety.sizeBox.top, node->Ety.sizeBox.right, node->Ety.sizeBox.bottom,
+                node->Ety.stroke, &node->Ety.color);
+        }
+        break;
+    }
+    case CRUISHAPE_ELIPSE:
+    {
+        float rx = (node->Ety.sizeBox.right - node->Ety.sizeBox.left) / 2;
+        float ry = (node->Ety.sizeBox.bottom - node->Ety.sizeBox.top) / 2;
+        float x =  rx + node->Ety.sizeBox.left;
+        float y =  ry + node->Ety.sizeBox.top;
+        if (node->Ety.style_s.type == CRUISTYLE_FILLED)
+        {
+            GenFilledElipse(node, x, y, rx, ry, &node->Ety.color);
+        }
+        else
+        {
+            GenElipse(node, x, y, rx, ry, node->Ety.stroke, &node->Ety.color);
+        }
+        break;
+        break;
+    }
+    default:
+        break;
+    }
     //
     CRSTRUCTURE entityPool;  //tree
     if (CRTreeSeek(levels, &entityPool, node->Ety.level) == CRERR_NOTFOUND)
@@ -496,6 +653,8 @@ CRCODE ccl_gl::AddEntity(CRUIENTITY* pEntity)
         entityPool = CRTree();
         if (!entityPool)
         {
+            pool->ReleaseBuffer(node->VBO);
+            pool->ReleaseBuffer(node->EBO);
             delete node;
             return CRERR_OUTOFMEM;
         }
@@ -528,11 +687,15 @@ void ccl_gl::Ratio()
     {
         dx = _w * ratio / 2;
         dy = CRGL_RATIO;
+        aspx = (float)_h / (float)_w;
+        aspy = 1.0;
     }
     else
     {
         dx = CRGL_RATIO;
         dy = _h * ratio / 2;
+        aspx = 1.0f;
+        aspy = (float)_w / (float)_h;
     }
 }
 
@@ -543,8 +706,10 @@ void ccl_gl::PaintAll()
     _draw_titlebar_(_w, _h);
     Resize(_w, _h);
     //
-    //DrawDemo();
+    glUseProgram(shaderProgram);
     CRStructureForEach(levels, _paint_levels_, this);
+    glUseProgram(0);  //有效的，不过记得还原到默认shader
+    //
     CRUINT64 key;
     while (!CRLinGet(emptylevel, (CRLVOID*)&key, 0))
         CRTreeGet(levels, NULL, key);
@@ -560,29 +725,73 @@ void ccl_gl::Resize(CRUINT32 x, CRUINT32 y)
     _w = x, _h = y;
     glViewport(0, 0, x, y);
     glLoadIdentity();
-    if (x > y)
-    {
-        glOrtho(-CRGL_RATIO * x / y, CRGL_RATIO * x / y, -CRGL_RATIO, CRGL_RATIO, CRGL_RATIO / 10, -CRGL_RATIO * 100);
-    }
-    else
-    {
-        glOrtho(-CRGL_RATIO, CRGL_RATIO, -CRGL_RATIO * y / x, CRGL_RATIO * y / x, CRGL_RATIO / 10, -CRGL_RATIO * 100);
-    }
     Ratio();
 }
 
-void _delete_vao_(CRLVOID data)
+void cr_vertex_buffer_pool::_load_apis_()
 {
-    
+    glGenVertexArrays = (PGLGENVERTEXARRAYS)crGetProcAddress("glGenVertexArrays");
+    glDeleteVertexArrays = (PGLDELETEVERTEXARRAYS)crGetProcAddress("glDeleteVertexArrays");
+    glGenBuffers = (PGLGENBUFFERS)crGetProcAddress("glGenBuffers");
+    glDeleteBuffers = (PGLDELETEBUFFERS)crGetProcAddress("glDeleteBuffers");
 }
 
-cr_vaovbo_pool::cr_vaovbo_pool()
+cr_vertex_buffer_pool::cr_vertex_buffer_pool()
 {
-    vaoPool = CRLinear();
-    vboPool = CRLinear();
+    _load_apis_();
+    vaoPool = CRDynamicPtr();
+    bufferPool = CRDynamicPtr();
 }
 
-cr_vaovbo_pool::~cr_vaovbo_pool()
+cr_vertex_buffer_pool::~cr_vertex_buffer_pool()
 {
-    CRFreeStructure(vaoPool, _delete_vao_);
+    CRUINT32 size = 0;
+    CRUINT32* buffer = (CRUINT32*)CRDynCopy(vaoPool, &size);
+    if (buffer) glDeleteVertexArrays(size, buffer);
+    CRDynFreeCopy(buffer);
+    //
+    buffer = (CRUINT32*)CRDynCopy(bufferPool, &size);
+    if (buffer) glDeleteBuffers(size, buffer);
+    CRDynFreeCopy(buffer);
+    //
+    CRFreeStructure(vaoPool, NULL);
+    CRFreeStructure(bufferPool, NULL);
+}
+
+unsigned int cr_vertex_buffer_pool::GetVAO()
+{
+    unsigned int VAO = 0;
+    if (CRStructureSize(vaoPool))
+        CRDynPopPtr(vaoPool, (CRLVOID*)&VAO);
+    else
+        glGenVertexArrays(1, &VAO);
+    return VAO;
+}
+
+unsigned int cr_vertex_buffer_pool::GetBuffer()
+{
+    CRUINT32 BUFFER = 0;
+    if (CRStructureSize(bufferPool))
+        CRDynPopPtr(bufferPool, (CRLVOID*)&BUFFER);
+    else
+        glGenBuffers(1, &BUFFER);
+    return BUFFER;
+}
+
+CRCODE cr_vertex_buffer_pool::ReleaseVAO(unsigned int vao)
+{
+    CRCODE code =
+    CRDynPushPtr(vaoPool, (CRLVOID)(CRUINT64)vao);
+    if (code)
+        glDeleteVertexArrays(1, &vao);  //假如无法放进池子，就地释放
+    return code;
+}
+
+CRCODE cr_vertex_buffer_pool::ReleaseBuffer(unsigned int buffer)
+{
+    CRCODE code =
+    CRDynPushPtr(bufferPool, (CRLVOID)(CRUINT64)buffer);
+    if (code)
+        glDeleteBuffers(1, &buffer);
+    return code;
 }
