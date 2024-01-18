@@ -8,6 +8,11 @@
 
 #define CRGL_RATIO 1.0f
 
+inline float _abs_(float num)
+{
+    return num > 0 ? num : -num;
+}
+
 const CRUINT32 rectElement[24] =
 {
     0, 1, 5, 0, 5, 4,
@@ -28,6 +33,7 @@ typedef struct entityNode
     CRUINT32 VAO;
     CRUINT32 VBO;
     CRUINT32 EBO;  //顶点索引信息
+    CRUINT32 Texture;  //只有Entity风格为Bitmap时会用到，其余时刻忽略
     float* arrayBuffer;  //使用arrayBuffer将顶点缓存起来就不用每次都去算了
     CRUINT32 arraysize;
     CRUINT32* elementBuffer;  //索引缓冲
@@ -116,8 +122,10 @@ void ccl_gl::_load_apis_()
     glVertex3f = (PGLVERTEX3F)crGetProcAddress("glVertex3f");
     glBindVertexArray = (PGLBINDVERTEXARRAY)crGetProcAddress("glBindVertexArray");
     glBindBuffer = (PGLBINDBUFFER)crGetProcAddress("glBindBuffer");
+    glBindTexture = (PGLBINDTEXTURE)crGetProcAddress("glBindTexture");
     glVertexAttribPointer = (PGLVERTEXATTRIBPOINTER)crGetProcAddress("glVertexAttribPointer");
     glBufferData = (PGLBUFFERDATA)crGetProcAddress("glBufferData");
+    glTexImage2D = (PGLTEXIMAGE2D)crGetProcAddress("glTexImage2D");
     glCreateShader = (PGLCREATESHADER)crGetProcAddress("glCreateShader");
     glDeleteShader = (PGLDELETESHADER)crGetProcAddress("glDeleteShader");
     glShaderSource = (PGLSHADERSOURCE)crGetProcAddress("glShaderSource");
@@ -136,54 +144,79 @@ void ccl_gl::_load_apis_()
     glUniform4f = (PGLUNIFORM4F)crGetProcAddress("glUniform4f");
     glUniform2f = (PGLUNIFORM2F)crGetProcAddress("glUniform2f");
     glGetUniformLoaction = (PGLGETUNIFORMLOCATION)crGetProcAddress("glGetUniformLocation");
+    glTexParameteri = (PGLTEXPARAMETERI)crGetProcAddress("glTexParameteri");
+    glTexParameterfv = (PGLTEXPARAMETERFV)crGetProcAddress("glTexParameterfv");
+    glGenerateMipmap = (PGLGENERATEMIPMAP)crGetProcAddress("glGenerateMipmap");
 }
 
 void ccl_gl::GenRect(CRLVOID inner, float x1, float y1, float x2, float y2, float stroke, CRCOLORF* pColor)
 {
     PCRUIENTITYNODE node = (PCRUIENTITYNODE)inner;
-    if (node->arraysize != sizeof(float) * 24)
-    {
-        if (node->arrayBuffer) delete[] node->arrayBuffer;
-        node->arrayBuffer = new float[24];  //x,y,z
-        node->arraysize = sizeof(float) * 24;
-    }
-    if (node->elementsize != sizeof(CRUINT32) * 24)
-    {
-        if (node->elementBuffer) delete[] node->elementBuffer;
-        node->elementBuffer = new CRUINT32[24];
-        node->elementsize = sizeof(CRUINT32) * 24;
-        node->elementcount = 24;
-    }
+    if (node->arrayBuffer) delete[] node->arrayBuffer;
+    node->arrayBuffer = new float[40];  //x,y,z,u,v
+    node->arraysize = sizeof(float) * 40;
+    if (node->elementBuffer) delete[] node->elementBuffer;
+    node->elementBuffer = new CRUINT32[24];
+    node->elementsize = sizeof(CRUINT32) * 24;
+    node->elementcount = 24;
+    
     x1 = (x1 + 0.5) * ratio - dx;
     x2 = (x2 + 0.5) * ratio - dx;
     y1 = -(y1 * ratio - dy);
     y2 = -(y2 * ratio - dy);
-    stroke = stroke * ratio / 2;
-    node->arrayBuffer[0] = x1 - stroke;
-    node->arrayBuffer[1] = y1 + stroke;
+    stroke = stroke * ratio;
+    if (node->Ety.texture)
+    {
+        PCRBITMAPINF inf = (PCRBITMAPINF)(node->Ety.texture);
+        float dxUV = inf->uvRect.right - inf->uvRect.left;
+        float dyUV = inf->uvRect.bottom - inf->uvRect.top;
+        float dxA = x2 - x1;
+        float dyA = y2 - y1;
+        float strokeUV = stroke * (_abs_(dxUV) + _abs_(dyUV)) / (_abs_(dxA) + _abs_(dyA));
+        node->arrayBuffer[3] = inf->uvRect.left;
+        node->arrayBuffer[4] = inf->uvRect.top;
+        node->arrayBuffer[8] = inf->uvRect.left;
+        node->arrayBuffer[9] = inf->uvRect.bottom;
+        node->arrayBuffer[13] = inf->uvRect.right;
+        node->arrayBuffer[14] = inf->uvRect.bottom;
+        node->arrayBuffer[18] = inf->uvRect.right;
+        node->arrayBuffer[19] = inf->uvRect.top;
+        //
+        node->arrayBuffer[23] = inf->uvRect.left + strokeUV;
+        node->arrayBuffer[24] = inf->uvRect.top - strokeUV;
+        node->arrayBuffer[28] = inf->uvRect.left + strokeUV;
+        node->arrayBuffer[29] = inf->uvRect.bottom + strokeUV;
+        node->arrayBuffer[33] = inf->uvRect.right - strokeUV;
+        node->arrayBuffer[34] = inf->uvRect.bottom + strokeUV;
+        node->arrayBuffer[38] = inf->uvRect.right - strokeUV;
+        node->arrayBuffer[39] = inf->uvRect.top - strokeUV;
+    }
+    else for (int i = 0; i < 40; i++) node->arrayBuffer[i] = 0.0f;
+    node->arrayBuffer[0] = x1;
+    node->arrayBuffer[1] = y1;
     node->arrayBuffer[2] = 0.0f;
-    node->arrayBuffer[3] = x1 - stroke;
-    node->arrayBuffer[4] = y2 - stroke;
-    node->arrayBuffer[5] = 0.0f;
-    node->arrayBuffer[6] = x2 + stroke;
-    node->arrayBuffer[7] = y2 - stroke;
-    node->arrayBuffer[8] = 0.0f;
-    node->arrayBuffer[9] = x2 + stroke;
-    node->arrayBuffer[10] = y1 + stroke;
-    node->arrayBuffer[11] = 0.0f;
-    //
-    node->arrayBuffer[12] = x1 + stroke;
-    node->arrayBuffer[13] = y1 - stroke;
-    node->arrayBuffer[14] = 0.0f;
-    node->arrayBuffer[15] = x1 + stroke;
-    node->arrayBuffer[16] = y2 + stroke;
+    node->arrayBuffer[5] = x1;
+    node->arrayBuffer[6] = y2;
+    node->arrayBuffer[7] = 0.0f;
+    node->arrayBuffer[10] = x2;
+    node->arrayBuffer[11] = y2;
+    node->arrayBuffer[12] = 0.0f;
+    node->arrayBuffer[15] = x2;
+    node->arrayBuffer[16] = y1;
     node->arrayBuffer[17] = 0.0f;
-    node->arrayBuffer[18] = x2 - stroke;
-    node->arrayBuffer[19] = y2 + stroke;
-    node->arrayBuffer[20] = 0.0f;
-    node->arrayBuffer[21] = x2 - stroke;
-    node->arrayBuffer[22] = y1 - stroke;
-    node->arrayBuffer[23] = 0.0f;
+    //
+    node->arrayBuffer[20] = x1 + stroke;
+    node->arrayBuffer[21] = y1 - stroke;
+    node->arrayBuffer[22] = 0.0f;
+    node->arrayBuffer[25] = x1 + stroke;
+    node->arrayBuffer[26] = y2 + stroke;
+    node->arrayBuffer[27] = 0.0f;
+    node->arrayBuffer[30] = x2 - stroke;
+    node->arrayBuffer[31] = y2 + stroke;
+    node->arrayBuffer[32] = 0.0f;
+    node->arrayBuffer[35] = x2 - stroke;
+    node->arrayBuffer[36] = y1 - stroke;
+    node->arrayBuffer[37] = 0.0f;
     //
     memcpy(node->elementBuffer, rectElement, node->elementsize);
 }
@@ -191,36 +224,43 @@ void ccl_gl::GenRect(CRLVOID inner, float x1, float y1, float x2, float y2, floa
 void ccl_gl::GenFilledRect(CRLVOID inner, float x1, float y1, float x2, float y2, CRCOLORF* pColor)
 {
     PCRUIENTITYNODE node = (PCRUIENTITYNODE)inner;
-    if (node->arraysize != sizeof(float) * 12)
-    {
-        if (node->arrayBuffer) delete[] node->arrayBuffer;
-        node->arrayBuffer = new float[12];  //x,y,z
-        node->arraysize = sizeof(float) * 12;
-    }
-    if (node->elementsize != sizeof(CRUINT32) * 6)
-    {
-        if (node->elementBuffer) delete[] node->elementBuffer;
-        node->elementBuffer = new CRUINT32[6];
-        node->elementsize = sizeof(CRUINT32) * 6;
-        node->elementcount = 6;
-    }
+    if (node->arrayBuffer) delete[] node->arrayBuffer;
+    node->arrayBuffer = new float[20];  //x,y,z
+    node->arraysize = sizeof(float) * 20;
+    if (node->elementBuffer) delete[] node->elementBuffer;
+    node->elementBuffer = new CRUINT32[6];
+    node->elementsize = sizeof(CRUINT32) * 6;
+    node->elementcount = 6;
     x1 = (x1 + 0.5) * ratio - dx;
     x2 = (x2 + 0.5) * ratio - dx;
     y1 = -(y1 * ratio - dy);
     y2 = -(y2 * ratio - dy);
+    if (node->Ety.texture)
+    {
+        PCRBITMAPINF inf = (PCRBITMAPINF)(node->Ety.texture);
+        node->arrayBuffer[3] = inf->uvRect.left;
+        node->arrayBuffer[4] = inf->uvRect.top;
+        node->arrayBuffer[8] = inf->uvRect.left;
+        node->arrayBuffer[9] = inf->uvRect.bottom;
+        node->arrayBuffer[13] = inf->uvRect.right;
+        node->arrayBuffer[14] = inf->uvRect.bottom;
+        node->arrayBuffer[18] = inf->uvRect.right;
+        node->arrayBuffer[19] = inf->uvRect.top;
+    }
+    else for (int i = 0; i < 20; i++) node->arrayBuffer[i] = 0.0f;
     //
     node->arrayBuffer[0] = x1;
     node->arrayBuffer[1] = y1;
     node->arrayBuffer[2] = 0.0f;
-    node->arrayBuffer[3] = x1;
-    node->arrayBuffer[4] = y2;
-    node->arrayBuffer[5] = 0.0f;
-    node->arrayBuffer[6] = x2;
-    node->arrayBuffer[7] = y2;
-    node->arrayBuffer[8] = 0.0f;
-    node->arrayBuffer[9] = x2;
-    node->arrayBuffer[10] = y1;
-    node->arrayBuffer[11] = 0.0f;
+    node->arrayBuffer[5] = x1;
+    node->arrayBuffer[6] = y2;
+    node->arrayBuffer[7] = 0.0f;
+    node->arrayBuffer[10] = x2;
+    node->arrayBuffer[11] = y2;
+    node->arrayBuffer[12] = 0.0f;
+    node->arrayBuffer[15] = x2;
+    node->arrayBuffer[16] = y1;
+    node->arrayBuffer[17] = 0.0f;
     //
     memcpy(node->elementBuffer, rectFilledElement, node->elementsize);
 }
@@ -228,36 +268,50 @@ void ccl_gl::GenFilledRect(CRLVOID inner, float x1, float y1, float x2, float y2
 void ccl_gl::GenElipse(CRLVOID inner, float x, float y, float rx, float ry, float stroke, CRCOLORF* pColor)
 {
     PCRUIENTITYNODE node = (PCRUIENTITYNODE)inner;
-    if (node->arraysize != sizeof(float) * 192)
-    {
-        if (node->arrayBuffer) delete[] node->arrayBuffer;
-        node->arrayBuffer = new float[192];  //x,y,z
-        node->arraysize = sizeof(float) * 192;
-    }
-    if (node->elementsize != sizeof(CRUINT32) * 192)  //总共64个三角形
-    {
-        if (node->elementBuffer) delete[] node->elementBuffer;
-        node->elementBuffer = new CRUINT32[192];
-        node->elementsize = sizeof(CRUINT32) * 192;
-        node->elementcount = 192;
-    }
+    if (node->arrayBuffer) delete[] node->arrayBuffer;
+    node->arrayBuffer = new float[320];  //x,y,z
+    node->arraysize = sizeof(float) * 320;
+    //总共64个三角形
+    if (node->elementBuffer) delete[] node->elementBuffer;
+    node->elementBuffer = new CRUINT32[192];
+    node->elementsize = sizeof(CRUINT32) * 192;
+    node->elementcount = 192;
     x = x * ratio - dx;
     y = -(y * ratio - dy);
     rx *= ratio;
     ry *= -ratio;
-    stroke = stroke * ratio / 2;
-    float l_x = rx + stroke;
-    float l_y = ry - stroke;
+    stroke = stroke * ratio;
+    float l_x = rx;
+    float l_y = ry;
     float s_x = rx - stroke;
     float s_y = ry + stroke;
+    if (node->Ety.texture)
+    {
+        PCRBITMAPINF inf = (PCRBITMAPINF)(node->Ety.texture);
+        float rxUV = (inf->uvRect.right - inf->uvRect.left) / 2;
+        float ryUV = (inf->uvRect.bottom - inf->uvRect.top) / 2;
+        float xUV = inf->uvRect.left + rxUV;
+        float yUV = inf->uvRect.top + ryUV;
+        float strokeUV = stroke * (_abs_(rxUV) + _abs_(ryUV)) / (_abs_(rx) + _abs_(ry));
+        float x_sUV = rxUV - strokeUV;
+        float y_sUV = ryUV + strokeUV;
+        for (int i = 0; i < 32; i++)
+        {
+            node->arrayBuffer[i * 10 + 3] = sin(i * M_PI * 2 / 32) * rxUV + xUV;
+            node->arrayBuffer[i * 10 + 4] = cos(i * M_PI * 2 / 32) * ryUV + yUV;
+            node->arrayBuffer[i * 10 + 8] = sin(i * M_PI * 2 / 32) * x_sUV + xUV;
+            node->arrayBuffer[i * 10 + 9] = cos(i * M_PI * 2 / 32) * y_sUV + yUV;
+        }
+    }
+    else for (int i = 0; i < 320; i++) node->arrayBuffer[i] = 0.0f;
     for (int i = 0; i < 32; i++)  //48个三角形
     {
-        node->arrayBuffer[i * 6] = sin(i * M_PI * 2 / 32) * l_x + x;
-        node->arrayBuffer[i * 6 + 1] = cos(i * M_PI * 2 / 32) * l_y + y;
-        node->arrayBuffer[i * 6 + 2] = 0.0f;
-        node->arrayBuffer[i * 6 + 3] = sin(i * M_PI * 2 / 32) * s_x + x;
-        node->arrayBuffer[i * 6 + 4] = cos(i * M_PI * 2 / 32) * s_y + y;
-        node->arrayBuffer[i * 6 + 5] = 0.0f;
+        node->arrayBuffer[i * 10] = sin(i * M_PI * 2 / 32) * l_x + x;
+        node->arrayBuffer[i * 10 + 1] = cos(i * M_PI * 2 / 32) * l_y + y;
+        node->arrayBuffer[i * 10 + 2] = 0.0f;
+        node->arrayBuffer[i * 10 + 5] = sin(i * M_PI * 2 / 32) * s_x + x;
+        node->arrayBuffer[i * 10 + 6] = cos(i * M_PI * 2 / 32) * s_y + y;
+        node->arrayBuffer[i * 10 + 7] = 0.0f;
     }
     for (int i = 0; i < 32; i++)
     {
@@ -276,31 +330,42 @@ void ccl_gl::GenElipse(CRLVOID inner, float x, float y, float rx, float ry, floa
 void ccl_gl::GenFilledElipse(CRLVOID inner, float x, float y, float rx, float ry, CRCOLORF* pColor)
 {
     PCRUIENTITYNODE node = (PCRUIENTITYNODE)inner;
-    if (node->arraysize != sizeof(float) * 99)
-    {
-        if (node->arrayBuffer) delete[] node->arrayBuffer;
-        node->arrayBuffer = new float[99];  //x,y,z
-        node->arraysize = sizeof(float) * 99;
-    }
-    if (node->elementsize != sizeof(CRUINT32) * 96)  //总共32个三角形，每一象限8个
-    {
-        if (node->elementBuffer) delete[] node->elementBuffer;
-        node->elementBuffer = new CRUINT32[96];
-        node->elementsize = sizeof(CRUINT32) * 96;
-        node->elementcount = 96;
-    }
+    if (node->arrayBuffer) delete[] node->arrayBuffer;
+    node->arrayBuffer = new float[165];  //x,y,z
+    node->arraysize = sizeof(float) * 165;
+    //总共32个三角形，每一象限8个
+    if (node->elementBuffer) delete[] node->elementBuffer;
+    node->elementBuffer = new CRUINT32[96];
+    node->elementsize = sizeof(CRUINT32) * 96;
+    node->elementcount = 96;
     x = x * ratio - dx;
     y = -(y * ratio - dy);
     rx *= ratio;
-    ry *= -ratio;
+    ry *= ratio;
+    if (node->Ety.texture)
+    {
+        PCRBITMAPINF inf = (PCRBITMAPINF)(node->Ety.texture);
+        float rxUV = (inf->uvRect.right - inf->uvRect.left) / 2;
+        float ryUV = (inf->uvRect.bottom - inf->uvRect.top) / 2;
+        float xUV = inf->uvRect.left + rxUV;
+        float yUV = inf->uvRect.top + ryUV;
+        node->arrayBuffer[3] = xUV;
+        node->arrayBuffer[4] = yUV;
+        for (int i = 1; i < 33; i++)
+        {
+            node->arrayBuffer[i * 5 + 3] = sin(i * M_PI * 2 / 32) * rxUV + xUV;
+            node->arrayBuffer[i * 5 + 4] = cos(i * M_PI * 2 / 32) * rxUV + xUV;
+        }
+    }
+    else for (int i = 0; i < 165; i++) node->arrayBuffer[i] = 0.0f;
     node->arrayBuffer[0] = x;
     node->arrayBuffer[1] = y;
     node->arrayBuffer[2] = 0.0f;
     for (int i = 1; i < 33; i++)  //24个三角形
     {
-        node->arrayBuffer[i * 3] = sin(i * M_PI * 2 / 32) * rx + x;
-        node->arrayBuffer[i * 3 + 1] = cos(i * M_PI * 2 / 32) * ry + y;
-        node->arrayBuffer[i * 3 + 2] = 0.0f;
+        node->arrayBuffer[i * 5] = sin(i * M_PI * 2 / 32) * rx + x;
+        node->arrayBuffer[i * 5 + 1] = cos(i * M_PI * 2 / 32) * ry + y;
+        node->arrayBuffer[i * 5 + 2] = 0.0f;
     }
     for (int i = 0; i < 32; i++)
     {
@@ -309,6 +374,47 @@ void ccl_gl::GenFilledElipse(CRLVOID inner, float x, float y, float rx, float ry
         node->elementBuffer[i * 3 + 2] = i + 2;
     }
     node->elementBuffer[95] = 1;
+}
+
+void ccl_gl::GenNode(CRLVOID inner)
+{
+    PCRUIENTITYNODE node = (PCRUIENTITYNODE)inner;
+    //生成顶点数组
+    switch (node->Ety.style_s.shape)
+    {
+    case CRUISHAPE_RECT:
+    {
+        if (node->Ety.style_s.type == CRUISTYLE_FILLED)
+        {
+            GenFilledRect(node, node->Ety.sizeBox.left, node->Ety.sizeBox.top, node->Ety.sizeBox.right, node->Ety.sizeBox.bottom,
+                &node->Ety.color);
+        }
+        else
+        {
+            GenRect(node, node->Ety.sizeBox.left, node->Ety.sizeBox.top, node->Ety.sizeBox.right, node->Ety.sizeBox.bottom,
+                node->Ety.stroke, &node->Ety.color);
+        }
+        break;
+    }
+    case CRUISHAPE_ELIPSE:
+    {
+        float rx = (node->Ety.sizeBox.right - node->Ety.sizeBox.left) / 2;
+        float ry = (node->Ety.sizeBox.bottom - node->Ety.sizeBox.top) / 2;
+        float x = rx + node->Ety.sizeBox.left;
+        float y = ry + node->Ety.sizeBox.top;
+        if (node->Ety.style_s.type == CRUISTYLE_FILLED)
+        {
+            GenFilledElipse(node, x, y, rx, ry, &node->Ety.color);
+        }
+        else
+        {
+            GenElipse(node, x, y, rx, ry, node->Ety.stroke, &node->Ety.color);
+        }
+        break;
+    }
+    default:
+        break;
+    }
 }
 
 void ccl_gl::DrawLine(float x1, float y1, float x2, float y2, float level, float stroke, CRCOLORF* pColor)
@@ -506,7 +612,7 @@ void _copy_entity_(CRUIENTITY* dst, CRUIENTITY* src)
     dst->stroke = src->stroke;
     dst->color = src->color;
     dst->key = src->key;
-    dst->userdata = src->userdata;
+    dst->texture = src->texture;
 }
 
 void _paint_entities_(CRLVOID data, CRLVOID user, CRUINT64 key)
@@ -557,14 +663,43 @@ void _paint_entities_(CRLVOID data, CRLVOID user, CRUINT64 key)
         pgl->glBindVertexArray(node->VAO);
         node->VBO = pgl->pool->GetBuffer();
         pgl->glBindBuffer(GL_ARRAY_BUFFER, node->VBO);
+        //VAO、VBO创建完毕
         pgl->glBufferData(GL_ARRAY_BUFFER, node->arraysize, node->arrayBuffer, GL_STATIC_DRAW);
-        pgl->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        pgl->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+        pgl->glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
         pgl->glEnableVertexAttribArray(0);
+        pgl->glEnableVertexAttribArray(1);
+        //创建EBO
         node->EBO = pgl->pool->GetBuffer();
         pgl->glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, node->EBO);
         pgl->glBufferData(GL_ELEMENT_ARRAY_BUFFER, node->elementsize, node->elementBuffer, GL_STATIC_DRAW);
+        //创建Texture
+        node->Texture = pgl->pool->GetTexture();
+        pgl->glBindTexture(GL_TEXTURE_2D, node->Texture);
+        //pgl->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
+        //pgl->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
+        if (node->Ety.texture)
+        {
+            PCRBITMAPINF inf = (PCRBITMAPINF)node->Ety.texture;
+            pgl->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, inf->w, inf->h, 0, GL_RGBA, GL_UNSIGNED_BYTE, inf->pixels);
+        }
+        else
+        {
+            pgl->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &pgl->whiteColor);
+        }
+        pgl->glGenerateMipmap(GL_TEXTURE_2D);
+        //此时这些数据已经进入显存了，可以释放掉节省内存
+        //贴图数据因为是用户提供的（不是内部生成的），所以说是否释放交给用户处理
+        //而且跨库跨线程也无法释放用户给的数据
+        delete[] node->arrayBuffer;
+        delete[] node->elementBuffer;
+        node->arraysize = 0;
+        node->elementsize = 0;
+        node->arrayBuffer = nullptr;
+        node->elementBuffer = nullptr;
     }
     pgl->glBindVertexArray(node->VAO);
+    pgl->glBindTexture(GL_TEXTURE_2D, node->Texture);
     if (node->pEty->enableVision)
     {
         //pgl->glPolygonMode(GL_FRONT, GL_LINE);  //polygon mode 可以指定成画线画点之类的
@@ -605,47 +740,12 @@ CRCODE ccl_gl::AddEntity(CRUIENTITY* pEntity)
     node->VAO = 0;
     node->VBO = 0;
     node->EBO = 0;
+    node->Texture = 0;
     node->arrayBuffer = nullptr;
     node->elementBuffer = nullptr;
     node->arraysize = 0;
     node->elementsize = 0;
-    //生成顶点数组
-    switch (node->Ety.style_s.shape)
-    {
-    case CRUISHAPE_RECT:
-    {
-        if (node->Ety.style_s.type == CRUISTYLE_FILLED)
-        {
-            GenFilledRect(node, node->Ety.sizeBox.left, node->Ety.sizeBox.top, node->Ety.sizeBox.right, node->Ety.sizeBox.bottom,
-                &node->Ety.color);
-        }
-        else
-        {
-            GenRect(node, node->Ety.sizeBox.left, node->Ety.sizeBox.top, node->Ety.sizeBox.right, node->Ety.sizeBox.bottom,
-                node->Ety.stroke, &node->Ety.color);
-        }
-        break;
-    }
-    case CRUISHAPE_ELIPSE:
-    {
-        float rx = (node->Ety.sizeBox.right - node->Ety.sizeBox.left) / 2;
-        float ry = (node->Ety.sizeBox.bottom - node->Ety.sizeBox.top) / 2;
-        float x =  rx + node->Ety.sizeBox.left;
-        float y =  ry + node->Ety.sizeBox.top;
-        if (node->Ety.style_s.type == CRUISTYLE_FILLED)
-        {
-            GenFilledElipse(node, x, y, rx, ry, &node->Ety.color);
-        }
-        else
-        {
-            GenElipse(node, x, y, rx, ry, node->Ety.stroke, &node->Ety.color);
-        }
-        break;
-        break;
-    }
-    default:
-        break;
-    }
+    GenNode(node);
     //
     CRSTRUCTURE entityPool;  //tree
     if (CRTreeSeek(levels, &entityPool, node->Ety.level) == CRERR_NOTFOUND)
@@ -734,6 +834,8 @@ void cr_vertex_buffer_pool::_load_apis_()
     glDeleteVertexArrays = (PGLDELETEVERTEXARRAYS)crGetProcAddress("glDeleteVertexArrays");
     glGenBuffers = (PGLGENBUFFERS)crGetProcAddress("glGenBuffers");
     glDeleteBuffers = (PGLDELETEBUFFERS)crGetProcAddress("glDeleteBuffers");
+    glGenTextures = (PGLGENTEXTURES)crGetProcAddress("glGenTextures");
+    glDeleteTextures = (PGLDELETETEXTURES)crGetProcAddress("glDeleteTextures");
 }
 
 cr_vertex_buffer_pool::cr_vertex_buffer_pool()
@@ -741,6 +843,7 @@ cr_vertex_buffer_pool::cr_vertex_buffer_pool()
     _load_apis_();
     vaoPool = CRDynamicPtr();
     bufferPool = CRDynamicPtr();
+    texPool = CRDynamicPtr();
 }
 
 cr_vertex_buffer_pool::~cr_vertex_buffer_pool()
@@ -754,8 +857,13 @@ cr_vertex_buffer_pool::~cr_vertex_buffer_pool()
     if (buffer) glDeleteBuffers(size, buffer);
     CRDynFreeCopy(buffer);
     //
+    buffer = (CRUINT32*)CRDynCopy(texPool, &size);
+    if (buffer) glDeleteTextures(size, buffer);
+    CRDynFreeCopy(buffer);
+    //
     CRFreeStructure(vaoPool, NULL);
     CRFreeStructure(bufferPool, NULL);
+    CRFreeStructure(texPool, NULL);
 }
 
 unsigned int cr_vertex_buffer_pool::GetVAO()
@@ -778,6 +886,16 @@ unsigned int cr_vertex_buffer_pool::GetBuffer()
     return BUFFER;
 }
 
+unsigned int cr_vertex_buffer_pool::GetTexture()
+{
+    CRUINT32 Texture = 0;
+    if (CRStructureSize(texPool))
+        CRDynPopPtr(texPool, (CRLVOID*)&Texture);
+    else
+        glGenTextures(1, &Texture);
+    return Texture;
+}
+
 CRCODE cr_vertex_buffer_pool::ReleaseVAO(unsigned int vao)
 {
     CRCODE code =
@@ -793,5 +911,14 @@ CRCODE cr_vertex_buffer_pool::ReleaseBuffer(unsigned int buffer)
     CRDynPushPtr(bufferPool, (CRLVOID)(CRUINT64)buffer);
     if (code)
         glDeleteBuffers(1, &buffer);
+    return code;
+}
+
+CRCODE cr_vertex_buffer_pool::ReleaseTexture(unsigned int texture)
+{
+    CRCODE code =
+    CRDynPushPtr(texPool, (CRLVOID)(CRUINT64)texture);
+    if (code)
+        glDeleteTextures(1, &texture);
     return code;
 }

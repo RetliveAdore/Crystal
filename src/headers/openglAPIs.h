@@ -1451,10 +1451,14 @@ typedef void (APIETYP PGLGENVERTEXARRAYS)(GLsizei n, GLuint* arrays);
 typedef void (APIETYP PGLDELETEVERTEXARRAYS)(GLsizei n, const GLuint* arrays);
 typedef void (APIETYP PGLGENBUFFERS)(GLsizei n, GLuint* buffers);
 typedef void (APIETYP PGLDELETEBUFFERS)(GLsizei n, const GLuint* buffers);
+typedef void (APIETYP PGLGENTEXTURES)(GLsizei n, GLuint* textures);
+typedef void (APIETYP PGLDELETETEXTURES)(GLsizei n, const GLuint* textures);
 typedef void (APIETYP PGLBINDVERTEXARRAY)(GLuint arr);
 typedef void (APIETYP PGLBINDBUFFER)(GLenum target, GLuint buffer);
+typedef void (APIETYP PGLBINDTEXTURE)(GLenum target, GLuint texture);
 typedef void (APIETYP PGLVERTEXATTRIBPOINTER)(GLuint index, GLuint size, GLenum type, GLboolean normalized, GLsizei stride, const GLvoid* pointer);
 typedef void (APIETYP PGLBUFFERDATA)(GLenum target, GLsizei ptrSize, const GLvoid* data, GLenum usage);
+typedef void (APIETYP PGLTEXIMAGE2D)(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLint format, GLenum type, const GLvoid* pixels);
 typedef void (APIETYP PGLDELETESHADER)(GLuint shader);
 typedef void (APIETYP PGLSHADERSOURCE)(GLuint shader, GLsizei count, const GLchar* const* string, const GLint* length);
 typedef void (APIETYP PGLCOMPILESHADER)(GLuint shader);
@@ -1470,5 +1474,8 @@ typedef void (APIETYP PGLDRAWELEMENTS)(GLenum mode, GLsizei count, GLenum type, 
 typedef void (APIETYP PGLPOLYGONMODE)(GLenum face, GLenum mode);
 typedef void (APIETYP PGLUNIFORM2F)(GLint location, GLfloat v0, GLfloat v1);
 typedef void (APIETYP PGLUNIFORM4F)(GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
+typedef void (APIETYP PGLTEXPARAMETERI)(GLenum target, GLenum pname, GLint param);
+typedef void (APIETYP PGLTEXPARAMETERFV)(GLenum target, GLenum pname, const GLfloat* params);
+typedef void (APIETYP PGLGENERATEMIPMAP)(GLenum target);
 
 #endif

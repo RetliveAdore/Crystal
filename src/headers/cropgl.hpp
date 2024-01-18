@@ -30,8 +30,10 @@ class cr_vertex_buffer_pool
 public:
     unsigned int GetVAO();
     unsigned int GetBuffer();
+    unsigned int GetTexture();
     CRCODE ReleaseVAO(unsigned int vao);
     CRCODE ReleaseBuffer(unsigned int buffer);
+    CRCODE ReleaseTexture(unsigned int texture);
 public:
     cr_vertex_buffer_pool();
     ~cr_vertex_buffer_pool();
@@ -42,6 +44,7 @@ private:
 private:
     CRSTRUCTURE vaoPool;
     CRSTRUCTURE bufferPool;
+    CRSTRUCTURE texPool;
 
     //严重警告，下面的所有函数都不支持跨线程调用，否则会立即出现野指针错误
     //一坨大便
@@ -49,6 +52,8 @@ private:
     CR_GLAPI PGLDELETEVERTEXARRAYS glDeleteVertexArrays;
     CR_GLAPI PGLGENBUFFERS glGenBuffers;
     CR_GLAPI PGLDELETEBUFFERS glDeleteBuffers;
+    CR_GLAPI PGLGENTEXTURES glGenTextures;
+    CR_GLAPI PGLDELETETEXTURES glDeleteTextures;
 };
 
 //这些方法是从CCL里面来的，就不改名了
@@ -84,6 +89,8 @@ private:
     void GenFilledElipse(CRLVOID inner, float x, float y, float rx, float ry, CRCOLORF* pColor);
     void GenLine(CRLVOID inner, float x1, float y1, float x2, float y2, float stroke, CRCOLORF* pColor);
     
+    void GenNode(CRLVOID inner);
+
     void _load_apis_();
     void _fill_port_(float r, float g, float b);
     void _draw_titlebar_(CRINT32 _w, CRINT32 _h);
@@ -104,6 +111,7 @@ private:
     CRUINT32 shaderProgram;
     CRINT32 colorLocation;
     CRINT32 aspLocation;
+    CRCOLORU whiteColor = {255, 255, 255, 255};  //1x1纹理，主打一个节省空间
     float aspx = 1.0;
     float aspy = 1.0;
 
@@ -123,8 +131,10 @@ private:
     CR_GLAPI PGLVERTEX3F glVertex3f;
     CR_GLAPI PGLBINDVERTEXARRAY glBindVertexArray;
     CR_GLAPI PGLBINDBUFFER glBindBuffer;
+    CR_GLAPI PGLBINDTEXTURE glBindTexture;
     CR_GLAPI PGLVERTEXATTRIBPOINTER glVertexAttribPointer;
     CR_GLAPI PGLBUFFERDATA glBufferData;
+    CR_GLAPI PGLTEXIMAGE2D glTexImage2D;
     CR_GLAPI PGLCREATESHADER glCreateShader;
     CR_GLAPI PGLDELETESHADER glDeleteShader;
     CR_GLAPI PGLSHADERSOURCE glShaderSource;
@@ -143,6 +153,9 @@ private:
     CR_GLAPI PGLUNIFORM2F glUniform2f;
     CR_GLAPI PGLUNIFORM4F glUniform4f;
     CR_GLAPI PGLGETUNIFORMLOCATION glGetUniformLoaction;
+    CR_GLAPI PGLTEXPARAMETERI glTexParameteri;
+    CR_GLAPI PGLTEXPARAMETERFV glTexParameterfv;
+    CR_GLAPI PGLGENERATEMIPMAP glGenerateMipmap;
 
     CRINT32 _w = 0, _h = 0;
     CRUINT32 CurrentID = 1;

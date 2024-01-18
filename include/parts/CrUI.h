@@ -90,7 +90,7 @@ typedef struct
 	CRUINT64 level;
 	CRUINT64 id;  //当产生控件消息时以key作为控件识别依据，ID一旦确定不可修改
 	CRUINT64 key; //控件排序的依据（我有一个使用哈希表直接排序的方法，性能可能不算最优，但在各种情况下性能稳定）
-	CRLVOID userdata;
+	CRLVOID texture;  //如果需要纹理贴图，就把PCRBITMAPINF放在这里
 	/*
 	* 事件回调和渲染的开关时相互独立的
 	* 比如说：可以作为一个普通的图像实体，无事件，仅绘制
@@ -108,8 +108,15 @@ typedef struct
 //
 #define CRUISTYLE_COUNTOUR (CRUINT16)0x00
 #define CRUISTYLE_FILLED   (CRUINT16)0x01
-#define CRUISTYLE_BITMAP   (CRUINT16)0x02
 //
+
+typedef struct
+{
+	CRCOLORU* pixels;
+	CRUINT32 w;
+	CRUINT32 h;
+	CRRECTF uvRect;
+}CRBITMAPINF, *PCRBITMAPINF;
 
 #ifdef __cplusplus
 extern "C" {

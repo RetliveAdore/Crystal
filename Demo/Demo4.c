@@ -86,7 +86,7 @@ int Demo4(int argc, char** argv)
 	//一定记得手动释放内存，虽然uninit时会自动释放，但是建议养成好习惯
 	CRAudioClose(play);
 
-	code = CRLoadWave("./resource/rick.wav", pcm, &inf);
+	code = CRLoadWave("./resource/au2.wav", pcm, &inf);
 	if (code)
 		printf("Error: %s\n", CRGetError(code));
 	printf("采样率：%d\n", inf.SampleRate);
