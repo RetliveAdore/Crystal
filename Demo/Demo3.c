@@ -3,6 +3,8 @@
 #include <parts/Crbasic.h>
 #include <parts/CrTreeExtra.h>
 #include <malloc.h>
+#include <stdlib.h>
+#include <time.h>
 
 CRUIENTITY entity1;
 CRUIENTITY entity2;
@@ -22,17 +24,15 @@ CRCODE EntityEvent(PCRUIMSG msg)
 	{
 		if (id == 1)
 		{
-			entity1.color.r = 0.5f;
-			entity1.color.g = 0.5f;
-			entity1.color.b = 0.5f;
-			entity1.update = CRTRUE;
+			entity1.sizeBox.top += 10;
+			entity1.sizeBox.bottom += 10;
+			entity1.moved = CRTRUE;
 		}
 		else if (id == 2)
 		{
-			entity2.color.r = 0.5f;
-			entity2.color.g = 0.5f;
-			entity2.color.b = 0.5f;
+			entity2.style_s.shape = CRUISHAPE_RECT;
 			entity2.update = CRTRUE;
+			entity2.moved = CRTRUE;
 		}
 		else if (id == 3)
 		{
@@ -53,17 +53,15 @@ CRCODE EntityEvent(PCRUIMSG msg)
 	{
 		if (id == 1)
 		{
-			entity1.color.r = 1.0f;
-			entity1.color.g = 1.0f;
-			entity1.color.b = 1.0f;
-			entity1.update = CRTRUE;
+			entity1.sizeBox.top -= 10;
+			entity1.sizeBox.bottom -= 10;
+			entity1.moved = CRTRUE;
 		}
 		else if (id == 2)
 		{
-			entity2.color.r = 1.0f;
-			entity2.color.g = 1.0f;
-			entity2.color.b = 1.0f;
+			entity2.style_s.shape = CRUISHAPE_ELIPSE;
 			entity2.update = CRTRUE;
+			entity2.moved = CRTRUE;
 		}
 		else if (id == 3)
 		{
@@ -107,18 +105,21 @@ int Demo3(int argc, char** argv)
 	bmp1.uvRect.top = 1.0f;
 	bmp1.uvRect.right = 1.0f;
 	bmp1.uvRect.bottom = 0.0f;
+	srand(time(0));
+	CRUINT8 seed = 0;
 	for (int i = 0; i < 128; i++)
 	{
 		for (int j = 0; j < 128; j++)
 		{
-			bmp1.pixels[i * 128 + j].r = i * 256 / 128;
-			bmp1.pixels[i * 128 + j].g = j * 256 / 128;
-			bmp1.pixels[i * 128 + j].b = 255 - i - j;
+			seed = rand() % 130;
+			bmp1.pixels[i * 128 + j].r = seed + 125;
+			bmp1.pixels[i * 128 + j].g = seed + 115;
+			bmp1.pixels[i * 128 + j].b = 100;
 			bmp1.pixels[i * 128 + j].a = 255;
 		}
 	}
 
-	entity1.texture = &bmp1;
+	entity1.texture = NULL;
 	entity1.color.r = 1.0f;
 	entity1.color.g = 1.0f;
 	entity1.color.b = 1.0f;

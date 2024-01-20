@@ -111,6 +111,7 @@ private:
     CRUINT32 shaderProgram;
     CRINT32 colorLocation;
     CRINT32 aspLocation;
+    CRUINT32 publicTexture;
     CRCOLORU whiteColor = {255, 255, 255, 255};  //1x1纹理，主打一个节省空间
     float aspx = 1.0;
     float aspy = 1.0;
@@ -173,11 +174,14 @@ private:
     CRSTRUCTURE levels;  //键值树，存储需要绘制的UI实体元素
     //levels存储的是层级，在每个层级中存储对应的items，层级按照从小到大依次渲染
     //每个层级内部的元素也有编号（编号可重合，但重合编号但是元素将随机顺序渲染）按照从小到大依次渲染
+    CRSTRUCTURE existTexture;  //用于存储已经存在的纹理，避免重复创建
+    CRSTRUCTURE existTextureToken;  //记录每一个纹理的引用次数，如果归零就删除纹理
 
     CRTREEXTRA quadTree;
     friend void _paint_entities_(CRLVOID, CRLVOID, CRUINT64);
     friend void _paint_levels_(CRLVOID, CRLVOID, CRUINT64);
     friend void _free_entity_pool_(CRLVOID);
+    friend void _free_textures_(CRLVOID, CRLVOID, CRUINT64);
 };
 
 #endif

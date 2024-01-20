@@ -33,7 +33,7 @@ typedef struct entityNode
     CRUINT32 VAO;
     CRUINT32 VBO;
     CRUINT32 EBO;  //顶点索引信息
-    CRUINT32 Texture;  //只有Entity风格为Bitmap时会用到，其余时刻忽略
+    CRUINT64 Texture;  //只有Entity风格为Bitmap时会用到，其余时刻忽略
     float* arrayBuffer;  //使用arrayBuffer将顶点缓存起来就不用每次都去算了
     CRUINT32 arraysize;
     CRUINT32* elementBuffer;  //索引缓冲
@@ -467,6 +467,12 @@ void _free_levels_(CRLVOID data)
     CRFreeStructure((CRSTRUCTURE)data, _free_entity_pool_);
 }
 
+void _free_textures_(CRLVOID data, CRLVOID user, CRUINT64 id)
+{
+    ccl_gl* pgl = (ccl_gl*)user;
+    pgl->pool->ReleaseTexture((CRUINT32)(CRUINT64)data);
+}
+
 #ifdef CR_LINUX
 #include <string.h>
 //查询线宽范围
@@ -525,6 +531,11 @@ ccl_gl::ccl_gl(Display* pDisplay, XVisualInfo* vi, Window win)
 #endif
     _load_apis_();
     pool = new cr_vertex_buffer_pool();
+    //
+    publicTexture = pool->GetTexture();
+    glBindTexture(GL_TEXTURE_2D, publicTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &whiteColor);
+    //
     VertexShader = glCreateShader(GL_VERTEX_SHADER);
     FragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
     glShaderSource(VertexShader, 1, &CrVertexShaderSource1, NULL);
@@ -548,6 +559,8 @@ ccl_gl::ccl_gl(Display* pDisplay, XVisualInfo* vi, Window win)
     toremove = CRLinear();
     emptylevel = CRLinear();
     levels = CRTree();
+    existTexture = CRTree();
+    existTextureToken = CRTree();
     quadTree = CRQuadtree(5000, 5000, 4);  //暂且使用这个大小，肯定会遇到不够的时候的
 }
 
@@ -565,6 +578,11 @@ ccl_gl::~ccl_gl()
     CRFreeStructure(toremove, NULL);
     CRFreeStructure(emptylevel, NULL);
     CRFreeStructure(levels, _free_levels_);
+    //手动预释放纹理（尚未实际删除，在deletepool之后就真正意义上删除了）
+    CRStructureForEach(existTexture, _free_textures_, this);
+    CRFreeStructure(existTexture, NULL);
+    CRFreeStructure(existTextureToken, NULL);
+    //
     CRFreeTreextra(quadTree, NULL);
     //
     glDetachShader(shaderProgram, VertexShader);
@@ -612,7 +630,7 @@ void _copy_entity_(CRUIENTITY* dst, CRUIENTITY* src)
     dst->stroke = src->stroke;
     dst->color = src->color;
     dst->key = src->key;
-    dst->texture = src->texture;
+    //dst->texture = src->texture;
 }
 
 void _paint_entities_(CRLVOID data, CRLVOID user, CRUINT64 key)
@@ -625,6 +643,19 @@ void _paint_entities_(CRLVOID data, CRLVOID user, CRUINT64 key)
         //此时就需要准备移除这个结点了
         CRLinPut(pgl->toremove, (CRLVOID)key, 0);
         CRUIENTITY* p = node->pEty;
+        //判断一下纹理
+        CRUINT64 token = 0;
+        if (CRTreeSeek(pgl->existTextureToken, (CRLVOID*)&token, (CRUINT64)node->Ety.texture))
+        {  //找到了token
+            token--;
+            if (token > 0) CRTreePut(pgl->existTextureToken, (CRLVOID)token, (CRUINT64)node->Ety.texture);
+            else  //token归零，需要回收texture ID
+            {
+                CRTreeGet(pgl->existTexture, NULL, (CRUINT64)node->Ety.texture);
+                pgl->pool->ReleaseTexture(node->Texture);
+            }
+        }
+        //
         delete node;
         p->invalid = CRFALSE; //此时告诉用户，已经处理妥善，可以释放用户的pEty的内存了
         return; 
@@ -632,6 +663,9 @@ void _paint_entities_(CRLVOID data, CRLVOID user, CRUINT64 key)
     if (node->pEty->update)
     {
         _copy_entity_(&(node->Ety), node->pEty);
+        //纹理发生变化要单独处理
+
+        //
         node->pEty->update = CRFALSE;
     }
     if (node->pEty->enableEvent)
@@ -643,7 +677,7 @@ void _paint_entities_(CRLVOID data, CRLVOID user, CRUINT64 key)
         }
         else if (node->pEty->moved)  //涉及到区域检索树的变换
         {
-            node->pEty->moved = CRFALSE;
+            //node->pEty->moved = CRFALSE;
             node->Ety.sizeBox = node->pEty->sizeBox;
             CRQuadtreeRemove(pgl->quadTree, (CRLVOID)node->Ety.id);
             CRQuadtreePushin(pgl->quadTree, node->Ety.sizeBox, (CRLVOID)node->Ety.id);
@@ -674,19 +708,26 @@ void _paint_entities_(CRLVOID data, CRLVOID user, CRUINT64 key)
         pgl->glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, node->EBO);
         pgl->glBufferData(GL_ELEMENT_ARRAY_BUFFER, node->elementsize, node->elementBuffer, GL_STATIC_DRAW);
         //创建Texture
-        node->Texture = pgl->pool->GetTexture();
-        pgl->glBindTexture(GL_TEXTURE_2D, node->Texture);
-        //pgl->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
-        //pgl->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
         if (node->Ety.texture)
         {
-            PCRBITMAPINF inf = (PCRBITMAPINF)node->Ety.texture;
-            pgl->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, inf->w, inf->h, 0, GL_RGBA, GL_UNSIGNED_BYTE, inf->pixels);
+            if (CRTreeSeek(pgl->existTexture, (CRLVOID*)&node->Texture, (CRUINT64)node->Ety.texture))
+            {  //需要生成的情况
+                node->Texture = pgl->pool->GetTexture();
+                pgl->glBindTexture(GL_TEXTURE_2D, node->Texture);
+                PCRBITMAPINF inf = (PCRBITMAPINF)node->Ety.texture;
+                pgl->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, inf->w, inf->h, 0, GL_RGBA, GL_UNSIGNED_BYTE, inf->pixels);
+                CRTreePut(pgl->existTexture, (CRLVOID)node->Texture, (CRUINT64)node->Ety.texture);
+                CRTreePut(pgl->existTextureToken, (CRLVOID)1, (CRUINT64)node->Ety.texture);
+            }
+            else
+            {
+                CRUINT64 token = 0;
+                CRTreeSeek(pgl->existTextureToken, (CRLVOID*)&token, (CRUINT64)node->Ety.texture);
+                token++;
+                CRTreePut(pgl->existTextureToken, (CRLVOID)token, (CRUINT64)node->Ety.texture);
+            }
         }
-        else
-        {
-            pgl->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &pgl->whiteColor);
-        }
+        else node->Texture = pgl->publicTexture;
         pgl->glGenerateMipmap(GL_TEXTURE_2D);
         //此时这些数据已经进入显存了，可以释放掉节省内存
         //贴图数据因为是用户提供的（不是内部生成的），所以说是否释放交给用户处理
@@ -700,9 +741,25 @@ void _paint_entities_(CRLVOID data, CRLVOID user, CRUINT64 key)
     }
     pgl->glBindVertexArray(node->VAO);
     pgl->glBindTexture(GL_TEXTURE_2D, node->Texture);
+    if (node->pEty->moved)
+    {
+        pgl->glBindBuffer(GL_ARRAY_BUFFER, node->VBO);
+        pgl->glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, node->EBO);
+        node->Ety.sizeBox = node->pEty->sizeBox;
+        pgl->GenNode(node);
+        pgl->glBufferData(GL_ARRAY_BUFFER, node->arraysize, node->arrayBuffer, GL_STATIC_DRAW);
+        pgl->glBufferData(GL_ELEMENT_ARRAY_BUFFER, node->elementsize, node->elementBuffer, GL_STATIC_DRAW);
+        //此时这些数据已经进入显存了，可以释放掉节省内存
+        delete[] node->arrayBuffer;
+        delete[] node->elementBuffer;
+        node->arraysize = 0;
+        node->elementsize = 0;
+        node->arrayBuffer = nullptr;
+        node->elementBuffer = nullptr;
+        node->pEty->moved = CRFALSE;
+    }
     if (node->pEty->enableVision)
     {
-        //pgl->glPolygonMode(GL_FRONT, GL_LINE);  //polygon mode 可以指定成画线画点之类的
         pgl->glUniform2f(pgl->aspLocation, pgl->aspx, pgl->aspy);
         pgl->glUniform4f(pgl->colorLocation, node->Ety.color.r, node->Ety.color.g, node->Ety.color.b, node->Ety.color.a);
         pgl->glDrawElements(GL_TRIANGLES, node->elementcount, GL_UNSIGNED_INT, 0);
