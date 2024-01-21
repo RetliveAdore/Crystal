@@ -1,10 +1,13 @@
 ﻿#ifndef _INCLUDE_CCLGL_HPP_
 #define _INCLUDE_CCLGL_HPP_
-//#include <glad/glad.h>
 #include <openglAPIs.h>
 #include <Crystal.h>
 #include <parts/CrUI.h>
 #include <parts/CrTreeExtra.h>
+#include <freetype/freetype.h>
+
+extern FT_Library ftLib;
+#define QUAD_RANGE 4000
 
 #ifdef CR_WINDOWS
 #include <Windows.h>
@@ -90,6 +93,12 @@ private:
     void GenLine(CRLVOID inner, float x1, float y1, float x2, float y2, float stroke, CRCOLORF* pColor);
     
     void GenNode(CRLVOID inner);
+
+    //这个接口的设计思路是，每次绘制一个字符，一个一个组成一行文字
+    //此API负责画，画什么由外部调用决定，传入UNICODE编码和坐标进行绘制
+    void DrawFont(wchar_t ch, CRUINT32 x, CRUINT32 y);
+    //中文的宽度为一单位，高度为一单位，英文的小写宽度为0.5单位，高度为一单位
+    void SetFontSize(CRUINT32 w, CRUINT32 h);
 
     void _load_apis_();
     void _fill_port_(float r, float g, float b);

@@ -3,13 +3,14 @@
 #include <parts/CrUI.h>
 #include <crerrors.h>
 #include <cropgl.hpp>
-
+#include <freetype/freetype.h>
 // 全局变量
 static CRSTRUCTURE windowPool = nullptr;	  // tree
 static CRSTRUCTURE availableID = nullptr; // queue
 static CRUINT64 CurrentID = 1;
 static CRBOOL inited = CRFALSE;
 static CRBOOL wndclass = CRFALSE;
+FT_Library ftLib = 0;
 // 什么也不做，仅用于防止空指针
 CRCODE _do_nothing_(PCRUIMSG msg) { return 0; }
 
@@ -583,6 +584,11 @@ CRAPI CRCODE CRUIInit()
 		availableID = CRLinear();
 		CurrentID = 1;
 		regist_class();
+		if (FT_Init_FreeType(&ftLib))
+		{
+			CRThrowError(CRERR_CRUILOAD_FREETYPE, CRDES_CRUILOAD_FREETYPE);
+			return CRERR_CRUILOAD_FREETYPE;
+		}
 		inited = CRTRUE;
 	}
 	return 0;

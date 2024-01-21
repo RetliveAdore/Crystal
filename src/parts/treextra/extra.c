@@ -316,10 +316,10 @@ CRAPI CRTREEXTRA CRQuadtree(CRUINT64 w, CRUINT64 h, CRUINT8 max)
 		pInner->maxItem = max;
 		InitializeCriticalSection(&(pInner->pub.cs));
 		CRRECTU range;
-		range.left = 0;
-		range.right = w;
-		range.top = 0;
-		range.bottom = h;
+		range.left = -w;
+		range.right = w * 2;
+		range.top = -h;
+		range.bottom = h * 2;
 		pInner->root = _create_node_(range, NULL);
 		pInner->keyTree = CRTree();
 		if (!pInner->root)

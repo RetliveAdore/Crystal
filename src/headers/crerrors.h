@@ -67,4 +67,7 @@
 #define CRERR_CROPENGL_LOAD 1020
 #define CRDEF_CROPENGL_LOAD "Failed load opengl, check your library files"
 
+#define CRERR_CRUILOAD_FREETYPE 1021
+#define CRDES_CRUILOAD_FREETYPE "Error loading freetype library"
+
 #endif  //include

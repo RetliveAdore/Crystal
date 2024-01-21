@@ -561,7 +561,7 @@ ccl_gl::ccl_gl(Display* pDisplay, XVisualInfo* vi, Window win)
     levels = CRTree();
     existTexture = CRTree();
     existTextureToken = CRTree();
-    quadTree = CRQuadtree(5000, 5000, 4);  //暂且使用这个大小，肯定会遇到不够的时候的
+    quadTree = CRQuadtree(QUAD_RANGE, QUAD_RANGE, 4);  //暂且使用这个大小，肯定会遇到不够的时候的
 }
 
 ccl_gl::~ccl_gl()
