@@ -1472,10 +1472,12 @@ typedef void (APIETYP PGLDISABLEVERTEXATTRIBARRAY)(GLuint index);
 typedef void (APIETYP PGLDRAWARRAYS)(GLenum mode, GLint first, GLsizei count);
 typedef void (APIETYP PGLDRAWELEMENTS)(GLenum mode, GLsizei count, GLenum type, const void* indicies);
 typedef void (APIETYP PGLPOLYGONMODE)(GLenum face, GLenum mode);
+typedef void (APIETYP PGLUNIFORM1I)(GLint location, GLint v0);
 typedef void (APIETYP PGLUNIFORM2F)(GLint location, GLfloat v0, GLfloat v1);
 typedef void (APIETYP PGLUNIFORM4F)(GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
 typedef void (APIETYP PGLTEXPARAMETERI)(GLenum target, GLenum pname, GLint param);
 typedef void (APIETYP PGLTEXPARAMETERFV)(GLenum target, GLenum pname, const GLfloat* params);
 typedef void (APIETYP PGLGENERATEMIPMAP)(GLenum target);
+typedef void (APIETYP PGLACTIVETEXTURE)(GLenum texture);
 
 #endif

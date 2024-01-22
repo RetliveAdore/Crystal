@@ -78,6 +78,7 @@ CRCODE EntityEvent(PCRUIMSG msg)
 			entity4.update = CRTRUE;
 		}
 	}
+	return 0;
 }
 
 int Demo3(int argc, char** argv)
@@ -88,7 +89,7 @@ int Demo3(int argc, char** argv)
 		printf("error: %s\n", CRGetError(code));
 		return 1;
 	}
-	CRWINDOW window1 = CRCreateWindow("Demo1", CRWINDOW_USEDEFAULT, CRWINDOW_USEDEFAULT, 600, 400);
+	CRWINDOW window1 = CRCreateWindow("Demo1", CRWINDOW_USEDEFAULT, CRWINDOW_USEDEFAULT, 900, 600);
 	if (!window1)
 		printf("error: %s\n", CRGetError(0));
 

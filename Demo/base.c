@@ -52,8 +52,6 @@ CRBOOL ProcessCommand(int argc, char** argv)
 		printf("返回值：%d\n\n", Demo2(argc, argv));
 	else if (Compare(command, "Demo3"))
 		printf("返回值：%d\n\n", Demo3(argc, argv));
-	else if (Compare(command, "Demo4"))
-		printf("返回值：%d\n\n", Demo4(argc, argv));
 	else if (Compare(command, "City"))
 	{
 		CRAudioInit();

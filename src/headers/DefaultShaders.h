@@ -17,10 +17,10 @@ const char* CRFragmentShaderSource1 =
 "#version 330 core\n"
 "in vec2 uv_out;\n"
 "uniform vec4 paintColor;\n"
-"uniform sampler2D aTex;"
+"uniform sampler2D aTex0;"
 "out vec4 FragColor;\n"
 "void main() {\n"
-"  FragColor = texture(aTex, uv_out) * paintColor;\n"
+"  FragColor = texture(aTex0, uv_out) * paintColor;\n"
 "}\0"
 ;
 

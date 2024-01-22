@@ -141,12 +141,14 @@ void ccl_gl::_load_apis_()
     glDrawArrays = (PGLDRAWARRAYS)crGetProcAddress("glDrawArrays");
     glDrawElements = (PGLDRAWELEMENTS)crGetProcAddress("glDrawElements");
     glPolygonMode = (PGLPOLYGONMODE)crGetProcAddress("glPolygonMode");
+    glUniform1i = (PGLUNIFORM1I)crGetProcAddress("glUniform1i");
     glUniform4f = (PGLUNIFORM4F)crGetProcAddress("glUniform4f");
     glUniform2f = (PGLUNIFORM2F)crGetProcAddress("glUniform2f");
     glGetUniformLoaction = (PGLGETUNIFORMLOCATION)crGetProcAddress("glGetUniformLocation");
     glTexParameteri = (PGLTEXPARAMETERI)crGetProcAddress("glTexParameteri");
     glTexParameterfv = (PGLTEXPARAMETERFV)crGetProcAddress("glTexParameterfv");
     glGenerateMipmap = (PGLGENERATEMIPMAP)crGetProcAddress("glGenerateMipmap");
+    glActiveTexture = (PGLACTIVETEXTURE)crGetProcAddress("glActiveTexture");
 }
 
 void ccl_gl::GenRect(CRLVOID inner, float x1, float y1, float x2, float y2, float stroke, CRCOLORF* pColor)
@@ -550,6 +552,7 @@ ccl_gl::ccl_gl(Display* pDisplay, XVisualInfo* vi, Window win)
 
     colorLocation = glGetUniformLoaction(shaderProgram, "paintColor");
     aspLocation = glGetUniformLoaction(shaderProgram, "asp");
+    texture0 = glGetUniformLoaction(shaderProgram, "aTex0");
     /*
      * 创建环境完毕
      */
@@ -713,6 +716,7 @@ void _paint_entities_(CRLVOID data, CRLVOID user, CRUINT64 key)
             if (CRTreeSeek(pgl->existTexture, (CRLVOID*)&node->Texture, (CRUINT64)node->Ety.texture))
             {  //需要生成的情况
                 node->Texture = pgl->pool->GetTexture();
+                pgl->glActiveTexture(GL_TEXTURE0);
                 pgl->glBindTexture(GL_TEXTURE_2D, node->Texture);
                 PCRBITMAPINF inf = (PCRBITMAPINF)node->Ety.texture;
                 pgl->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, inf->w, inf->h, 0, GL_RGBA, GL_UNSIGNED_BYTE, inf->pixels);
@@ -762,6 +766,7 @@ void _paint_entities_(CRLVOID data, CRLVOID user, CRUINT64 key)
     {
         pgl->glUniform2f(pgl->aspLocation, pgl->aspx, pgl->aspy);
         pgl->glUniform4f(pgl->colorLocation, node->Ety.color.r, node->Ety.color.g, node->Ety.color.b, node->Ety.color.a);
+        pgl->glUniform1i(pgl->texture0, 0);
         pgl->glDrawElements(GL_TRIANGLES, node->elementcount, GL_UNSIGNED_INT, 0);
     }
     pgl->glBindVertexArray(0);

@@ -1,10 +1,9 @@
-ï»¿#include "Demo.h"
+#define CRENTRY_CRT
+#include <Crystal.h>
 #include <parts/CrUI.h>
 #include <parts/CrBasic.h>
 #include <parts/Crbinary.h>
 #include <parts/CrAudio.h>
-#include <stdio.h>
-#include <math.h>
 
 #define WINDOW_H 400
 #define WINDOW_W 600
@@ -13,7 +12,8 @@ CRUIENTITY button1;
 CRBOOL b1Pressed = CRFALSE;
 CRUIENTITY barLeft;
 CRUIENTITY barRight;
-float progress = 0.0f;  //0~1çš„æµ®ç‚¹æ•°ï¼Œç”¨äºŽè¡¨ç¤ºè¿›åº¦
+CRUIENTITY back1;
+float progress = 0.0f;  //0~1µÄ¸¡µãÊý£¬ÓÃÓÚ±íÊ¾½ø¶È
 CRUIENTITY button2;
 CRBOOL pause = CRTRUE;
 CRBOOL b2Pressed = CRFALSE;
@@ -87,7 +87,7 @@ CRCODE playerMouseEvent(PCRUIMSG msg)
 	{
 		if (b1Pressed)
 		{
-			if (msg->x <= 35) //é™ä½ï¼ˆè´´åˆè¿›åº¦æ¡ï¼‰
+			if (msg->x <= 35) //ÏÞÎ»£¨ÌùºÏ½ø¶ÈÌõ£©
 				msg->x = 35;
 			if (msg->x >= WINDOW_W - 35)
 				msg->x = WINDOW_W - 35;
@@ -105,7 +105,7 @@ CRCODE playerMouseEvent(PCRUIMSG msg)
 		if (b1Pressed)
 		{
 			b1Pressed = CRFALSE;
-			if (msg->x <= 35) //é™ä½ï¼ˆè´´åˆè¿›åº¦æ¡ï¼‰
+			if (msg->x <= 35) //ÏÞÎ»£¨ÌùºÏ½ø¶ÈÌõ£©
 				msg->x = 35;
 			if (msg->x >= WINDOW_W - 35)
 				msg->x = WINDOW_W - 35;
@@ -117,29 +117,21 @@ CRCODE playerMouseEvent(PCRUIMSG msg)
 	return 0;
 }
 
-int Demo2(int argc, char** argv)
+int main(int argc, char** argv)
 {
-	CRCODE code = 0;
-	if (code = CRUIInit())
-	{
-		printf("error: %s\n", CRGetError(code));
+	if (CRInit())
+		return -1;
+	if (CRUIInit())
 		return 1;
-	}
-	if (code = CRBasicInit())
-	{
-		printf("error: %s\n", CRGetError(code));
+	if (CRBasicInit())
 		return 1;
-	}
-	if (code = CRAudioInit())
-	{
-		printf("error: %s\n", CRGetError(code));
+	if (CRAudioInit())
 		return 1;
-	}
 
-	//åŠ è½½éŸ³é¢‘
+	//¼ÓÔØÒôÆµ
 	audioStream = CRDynamic();
-	if (code = CRLoadWave("./resource/au2.wav", audioStream, &streamInf))
-		printf("error: %s\n", CRGetError(code));
+	if (CRLoadWave("./resource/au2.wav", audioStream, &streamInf))
+		return 2;
 
 	streamOffset = 0;
 	frameSize = (streamInf.BitsPerSample >> 3) * streamInf.NumChannels;
@@ -147,11 +139,10 @@ int Demo2(int argc, char** argv)
 	audioEnd = CRFALSE;
 
 	player = CRAudioStream(&streamInf, playerStream);
-	//player = CRAudioBuffer(audioStream, &streamInf);
 	//
 	CRWINDOW playerWindow = CRCreateWindow("player", CRWINDOW_USEDEFAULT, CRWINDOW_USEDEFAULT, WINDOW_W, WINDOW_H);
 	if (!playerWindow)
-		printf("error: %s\n", CRGetError(0));
+		return 3;
 	button1.texture = NULL;
 	button1.color.r = 0.7f;
 	button1.color.g = 0.3f;
@@ -167,8 +158,7 @@ int Demo2(int argc, char** argv)
 	button1.sizeBox.top = WINDOW_H - 70;
 	button1.sizeBox.bottom = WINDOW_H - 60;
 	button1.level = 10;
-	if (code = CRWindowEntityAdd(playerWindow, &button1))
-		printf("error: %s\n", CRGetError(code));
+	CRWindowEntityAdd(playerWindow, &button1);
 
 	barLeft.texture = NULL;
 	barLeft.color.r = 0.7f;
@@ -184,9 +174,8 @@ int Demo2(int argc, char** argv)
 	barLeft.sizeBox.right = 30 + progress * (WINDOW_W - 60);
 	barLeft.sizeBox.top = WINDOW_H - 67;
 	barLeft.sizeBox.bottom = WINDOW_H - 63;
-	barLeft.level = 0;
-	if (code = CRWindowEntityAdd(playerWindow, &barLeft))
-		printf("error: %s\n", CRGetError(code));
+	barLeft.level = 1;
+	CRWindowEntityAdd(playerWindow, &barLeft);
 
 	barRight.texture = NULL;
 	barRight.color.r = 0.85f;
@@ -202,9 +191,25 @@ int Demo2(int argc, char** argv)
 	barRight.sizeBox.right = WINDOW_W - 30;
 	barRight.sizeBox.top = WINDOW_H - 67;
 	barRight.sizeBox.bottom = WINDOW_H - 63;
-	barRight.level = 0;
-	if (code = CRWindowEntityAdd(playerWindow, &barRight))
-		printf("error: %s\n", CRGetError(code));
+	barRight.level = 1;
+	CRWindowEntityAdd(playerWindow, &barRight);
+
+	back1.texture = NULL;
+	back1.color.r = 0.2f;
+	back1.color.g = 0.2f;
+	back1.color.b = 0.2f;
+	back1.color.a = 1.0f;
+	back1.id = 0;
+	back1.style_s.shape = CRUISHAPE_RECT;
+	back1.style_s.type = CRUISTYLE_FILLED;
+	back1.enableEvent = CRFALSE;
+	back1.enableVision = CRTRUE;
+	back1.sizeBox.left = 0;
+	back1.sizeBox.right = WINDOW_W;
+	back1.sizeBox.top = WINDOW_H - 85;
+	back1.sizeBox.bottom = WINDOW_H;
+	back1.level = 0;
+	CRWindowEntityAdd(playerWindow, &back1);
 
 	button2.texture = NULL;
 	button2.color.r = 0.6f;
@@ -221,13 +226,10 @@ int Demo2(int argc, char** argv)
 	button2.sizeBox.top = WINDOW_H - 50;
 	button2.sizeBox.bottom = WINDOW_H - 10;
 	button2.level = 10;
-	if (code = CRWindowEntityAdd(playerWindow, &button2))
-		printf("error: %s\n", CRGetError(code));
+	CRWindowEntityAdd(playerWindow, &button2);
 
-	if (code = CRSetWindowCbk(playerWindow, playerEntityEvent, CRUI_ENTITY_CB))
-		printf("error: %s\n", CRGetError(code));
-	if (code = CRSetWindowCbk(playerWindow, playerMouseEvent, CRUI_MOUSE_CB))
-		printf("error: %s\n", CRGetError(code));
+	CRSetWindowCbk(playerWindow, playerEntityEvent, CRUI_ENTITY_CB);
+	CRSetWindowCbk(playerWindow, playerMouseEvent, CRUI_MOUSE_CB);
 
 	while (CRUIOnQuit())
 	{

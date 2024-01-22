@@ -12,12 +12,10 @@ extern FT_Library ftLib;
 #ifdef CR_WINDOWS
 #include <Windows.h>
 #include <corecrt_math_defines.h>
-//#include <gl/GLU.h>
 #pragma comment(lib, "opengl32.lib")
 
 #elif defined CR_LINUX
 #include <GL/glx.h>
-//#include <GL/glu.h>
 #endif
 
 CRBOOL CROpenGLInit();
@@ -120,6 +118,7 @@ private:
     CRUINT32 shaderProgram;
     CRINT32 colorLocation;
     CRINT32 aspLocation;
+    CRINT32 texture0;
     CRUINT32 publicTexture;
     CRCOLORU whiteColor = {255, 255, 255, 255};  //1x1纹理，主打一个节省空间
     float aspx = 1.0;
@@ -160,12 +159,14 @@ private:
     CR_GLAPI PGLDRAWARRAYS glDrawArrays;
     CR_GLAPI PGLDRAWELEMENTS glDrawElements;
     CR_GLAPI PGLPOLYGONMODE glPolygonMode;
+    CR_GLAPI PGLUNIFORM1I glUniform1i;
     CR_GLAPI PGLUNIFORM2F glUniform2f;
     CR_GLAPI PGLUNIFORM4F glUniform4f;
     CR_GLAPI PGLGETUNIFORMLOCATION glGetUniformLoaction;
     CR_GLAPI PGLTEXPARAMETERI glTexParameteri;
     CR_GLAPI PGLTEXPARAMETERFV glTexParameterfv;
     CR_GLAPI PGLGENERATEMIPMAP glGenerateMipmap;
+    CR_GLAPI PGLACTIVETEXTURE glActiveTexture;
 
     CRINT32 _w = 0, _h = 0;
     CRUINT32 CurrentID = 1;

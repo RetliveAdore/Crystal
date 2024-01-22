@@ -59,6 +59,10 @@ file(GLOB_RECURSE Demo_Files
 "./Demo/*.*"
 )
 
+file(GLOB_RECURSE Player_Files
+"./Player/*.*"
+)
+
 #拷贝一些测试用资源
 add_custom_target("CopyTask"
   COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/resource
@@ -79,9 +83,11 @@ add_compile_definitions(CR_SHARED_LIB CR_BUILD_DLL)
 
 #这里面会有很多用于验证的演示
 add_executable("Demo" ${Demo_Files})
+add_executable("Player" ${Player_Files})
 
 #添加库依赖
 target_link_libraries("Demo" Crystal Crdynextra Crtreextra Crbasic Crbinary CrUI CrAudio)
+target_link_libraries("Player" Crystal Crdynextra Crtreextra Crbasic Crbinary CrUI CrAudio)
 target_link_libraries("Crdynextra" Crystal)
 target_link_libraries("Crtreextra" Crystal)
 target_link_libraries("Crbasic" Crystal)
@@ -90,6 +96,10 @@ target_link_libraries("CrUI" Crystal Crbasic freetype Crtreextra)
 target_link_libraries("CrAudio" Crystal Crbasic)
 
 add_dependencies("Demo"
+  "CopyTask" "Crystal" "Crbasic"
+  "Crbinary" "CrUI" "CrAudio"
+)
+add_dependencies("Player"
   "CopyTask" "Crystal" "Crbasic"
   "Crbinary" "CrUI" "CrAudio"
 )
@@ -102,6 +112,7 @@ add_dependencies("CrAudio" "Crystal" "Crbasic")
 
 if(MSVC)
   set_property(TARGET "Demo" PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+  set_property(TARGET "Player" PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
   set_property(TARGET "Crystal" PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
   set_property(TARGET "Crdynextra" PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
   set_property(TARGET "Crtreextra" PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")

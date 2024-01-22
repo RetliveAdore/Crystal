@@ -211,7 +211,7 @@ void _audio_stream_thread_(void* data, CRTHREAD idThis)
 {
 	AUTHRINF* auinf = (AUTHRINF*)data;
 	CRUINT8* pData = nullptr;
-	CRBOOL paused = CRFALSE;
+	CRBOOL paused = CRTRUE;
 	while (!auinf->stop)
 	{
 		//休眠一半时间
@@ -368,6 +368,7 @@ CRAPI CRAUDIOPLAY CRAudioStream(CRWWINFO* inf, CRAudioStreamCbk func)
 	thinf->stream = CRTRUE;
 	thinf->cbk = func;
 	thinf->inf = inf;
+	thinf->pause = CRTRUE;
 	//
 	if (!_create_device_(thinf, inf))
 		goto Failed;
@@ -379,8 +380,6 @@ CRAPI CRAUDIOPLAY CRAudioStream(CRWWINFO* inf, CRAudioStreamCbk func)
 		goto Failed;
 	//
 	thinf->hnsActualDuration = thinf->bufferFrameCount * 1000 / inf->SampleRate;
-	if (FAILED(thinf->pAudioClient->Start()))
-		goto Failed;
 	//开启线程
 	thinf->idThis = CRThread(_audio_stream_thread_, thinf);
 End:
@@ -450,7 +449,7 @@ void _audio_thread_(void* data, CRTHREAD idThis)
 void _audio_stream_thread_(void* data, CRTHREAD idThis)
 {
 	AUTHRINF* auinf = (AUTHRINF*)data;
-	CRBOOL paused = CRFALSE;
+	CRBOOL paused = CRTRUE;
 	CRINT32 rc;
 	CRUINT8* pData = new CRUINT8[auinf->frames * auinf->inf->BlockAlign];
 	if (!pData)
@@ -588,6 +587,7 @@ CRAPI CRAUDIOPLAY CRAudioStream(CRWWINFO* inf, CRAudioStreamCbk func)
 	thinf->stream = CRTRUE;
 	thinf->cbk = func;
 	thinf->inf = inf;
+	thinf->pause = CRTRUE;
 	if (!_create_device_(thinf, inf))
 		goto Failed;
 	thinf->idThis = CRThread(_audio_stream_thread_, thinf);
