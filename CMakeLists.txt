@@ -60,7 +60,7 @@ file(GLOB_RECURSE Demo_Files
 )
 
 file(GLOB_RECURSE Player_Files
-"./Player/*.*"
+"./player/*.*"
 )
 
 #拷贝一些测试用资源
