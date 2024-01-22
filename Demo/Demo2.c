@@ -1,6 +1,6 @@
 ﻿#include "Demo.h"
 #include <parts/CrUI.h>
-#include <parts/CrBasic.h>
+#include <parts/Crbasic.h>
 #include <parts/Crbinary.h>
 #include <parts/CrAudio.h>
 #include <stdio.h>
