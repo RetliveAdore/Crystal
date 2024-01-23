@@ -283,3 +283,47 @@ FileError:
 	fclose(fp);
 	return CRERR_BINARY_BROKENFILE;
 }
+
+CRAPI CRCODE CRLoadBmp(const char* path, CRSTRUCTURE out, CRBMPINF* inf)
+{
+	if (!inf)
+		return CRERR_INVALID;
+	FILE* fp = fopen(path, "rb");
+	if (!fp)
+		goto PathError;
+	CRBMPHEADER header;
+	fread(&header, sizeof(CRBMPHEADER), 1, fp);
+	if (!_compare_chars_((CRUINT8*)&header.type, "BM", 2)) goto FileError;
+	*inf = header.inf;
+	CRUINT8* bufferOut = malloc(header.inf.width * header.inf.height * 4);
+	if (!bufferOut)
+	{
+		fclose(fp);
+		return CRERR_OUTOFMEM;
+	}
+	fseek(fp, header.offBits, SEEK_SET);
+	CRUINT8 padding = 4 - (header.inf.width * 3 % 4);
+	for (int i = 0; i < header.inf.height; i++)
+	{
+		for (int j = 0; j < header.inf.width; j++)
+		{
+			fread(&bufferOut[(i * header.inf.width + j) * 4 + 2], 1, 1, fp);
+			fread(&bufferOut[(i * header.inf.width + j) * 4 + 1], 1, 1, fp);
+			fread(&bufferOut[(i * header.inf.width + j) * 4], 1, 1, fp);
+			bufferOut[(i * header.inf.width + j) * 4 + 3] = 255;
+		}
+		fseek(fp, padding, SEEK_CUR);
+	}
+	CRCODE code = CRDynSetup(out, bufferOut, header.inf.width * header.inf.height * 4);
+	free(bufferOut);
+	//
+	fclose(fp);
+	return code;
+PathError:
+	CRThrowError(CRERR_BINARY_INVALIDPATH, CRDES_BINARY_INVALIDPATH);
+	return CRERR_BINARY_INVALIDPATH;
+FileError:
+	CRThrowError(CRERR_BINARY_BROKENFILE, CRDES_BINARY_BROKENFILE);
+	fclose(fp);
+	return CRERR_BINARY_BROKENFILE;
+}

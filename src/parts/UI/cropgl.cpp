@@ -733,6 +733,7 @@ void _paint_entities_(CRLVOID data, CRLVOID user, CRUINT64 key)
         }
         else node->Texture = pgl->publicTexture;
         pgl->glGenerateMipmap(GL_TEXTURE_2D);
+        pgl->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         //此时这些数据已经进入显存了，可以释放掉节省内存
         //贴图数据因为是用户提供的（不是内部生成的），所以说是否释放交给用户处理
         //而且跨库跨线程也无法释放用户给的数据

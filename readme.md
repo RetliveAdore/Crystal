@@ -69,6 +69,7 @@ Demo$:Demo3
 &emsp;Demo1-网络相关功能演示(完整的演示至少需要两个运行中实体)  
 &emsp;Demo2-数据处理功能演示其一  
 &emsp;Demo3-图像及UI系列功能演示  
-&emsp;Demo4-音频功能演示
+····  
+&emsp;Player-一个简陋的播放器项目演示  
 ***
 ## 配置

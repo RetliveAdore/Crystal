@@ -31,6 +31,8 @@ CRAPI CRCODE CRDecompress(CRSTRUCTURE dynIn, CRSTRUCTURE dynOut);
 
 //用于加载PCM流数据，通常与CRAudio配合使用
 CRAPI CRCODE CRLoadWave(const char* path, CRSTRUCTURE out, CRWWINFO* inf);
+//用于加载bmp图片，用的很少，因为bmp是不压缩的，体积过大
+CRAPI CRCODE CRLoadBmp(const char* path, CRSTRUCTURE out, CRBMPINF* inf);
 
 #ifdef __cplusplus
 }

@@ -2,281 +2,64 @@
 #include <parts/CrUI.h>
 #include <parts/Crbasic.h>
 #include <parts/Crbinary.h>
-#include <parts/CrAudio.h>
 #include <stdio.h>
-#include <math.h>
-
-#define WINDOW_H 400
-#define WINDOW_W 600
-
-CRUIENTITY button1;
-CRBOOL b1Pressed = CRFALSE;
-CRUIENTITY barLeft;
-CRUIENTITY barRight;
-float progress = 0.0f;  //0~1的浮点数，用于表示进度
-CRUIENTITY button2;
-CRBOOL pause = CRTRUE;
-CRBOOL b2Pressed = CRFALSE;
-CRBOOL update = CRFALSE;
-
-CRWWINFO streamInf;
-CRSTRUCTURE audioStream = 0;
-CRUINT32 streamOffset = 0;
-CRUINT32 frameSize;
-CRUINT32 frameCounts;
-CRAUDIOPLAY player = 0;
-CRBOOL audioEnd = CRFALSE;
-
-CRCODE playerEntityEvent(PCRUIMSG msg)
-{
-	CRUINT64 id;
-	CRDynSeekPtr(msg->lp, (CRLVOID*)&id, 0);
-	if (msg->status & CRUI_STAT_DOWN)
-	{
-		if (id == 1)
-			b1Pressed = CRTRUE;
-		if (id == 2)
-		{
-			b2Pressed = CRTRUE;
-			button2.color.r = 0.3f;
-			button2.color.g = 0.3f;
-			button2.color.b = 0.3f;
-			button2.update = CRTRUE;
-		}
-	}
-	if (msg->status & CRUI_STAT_UP)
-	{
-		if (id == 2 && b2Pressed)
-		{
-			b2Pressed = CRFALSE;
-			if (pause)
-			{
-				pause = CRFALSE;
-				CRAudioResume(player);
-				button2.color.r = 0.2f;
-				button2.color.g = 0.6f;
-				button2.color.b = 0.2f;
-				button2.update = CRTRUE;
-			}
-			else
-			{
-				pause = CRTRUE;
-				CRAudioPause(player);
-				button2.color.r = 0.6f;
-				button2.color.g = 0.2f;
-				button2.color.b = 0.2f;
-				button2.update = CRTRUE;
-			}
-		}
-	}
-	return 0;
-}
-
-void playerStream(CRUINT8* buffer, CRUINT32 frames, CRUINT32 size)
-{
-	CRUINT32 offsetCopy = streamOffset;
-	for (int i = 0; i < size; i++) CRDynSeek(audioStream, (CRUINT8*)&buffer[i], offsetCopy + i);
-	streamOffset += size;
-	if (streamOffset > CRStructureSize(audioStream))
-		audioEnd = CRTRUE;
-}
-
-CRCODE playerMouseEvent(PCRUIMSG msg)
-{
-	if (msg->status & CRUI_STAT_MOVE)
-	{
-		if (b1Pressed)
-		{
-			if (msg->x <= 35) //限位（贴合进度条）
-				msg->x = 35;
-			if (msg->x >= WINDOW_W - 35)
-				msg->x = WINDOW_W - 35;
-			button1.sizeBox.left = msg->x - 5;
-			button1.sizeBox.right = msg->x + 5;
-			button1.moved = CRTRUE;
-			barLeft.sizeBox.right = msg->x;
-			barRight.sizeBox.left = msg->x;
-			barLeft.moved = CRTRUE;
-			barRight.moved = CRTRUE;
-		}
-	}
-	else if (msg->status & CRUI_STAT_UP)
-	{
-		if (b1Pressed)
-		{
-			b1Pressed = CRFALSE;
-			if (msg->x <= 35) //限位（贴合进度条）
-				msg->x = 35;
-			if (msg->x >= WINDOW_W - 35)
-				msg->x = WINDOW_W - 35;
-			progress = (float)(msg->x - 35) / (float)(WINDOW_W - 70);
-			streamOffset = frameSize * (CRUINT32)(frameCounts * progress);
-		}
-		update = CRTRUE;
-	}
-	return 0;
-}
+#include <malloc.h>
 
 int Demo2(int argc, char** argv)
 {
-	CRCODE code = 0;
+	CRCODE code;
+	if (code = CRBinaryInit())
+		printf("error: %s\n", CRGetError(code));
 	if (code = CRUIInit())
-	{
-		printf("error: %s\n", CRGetError(code));
-		return 1;
-	}
-	if (code = CRBasicInit())
-	{
-		printf("error: %s\n", CRGetError(code));
-		return 1;
-	}
-	if (code = CRAudioInit())
-	{
-		printf("error: %s\n", CRGetError(code));
-		return 1;
-	}
-
-	//加载音频
-	audioStream = CRDynamic();
-	if (code = CRLoadWave("./resource/au2.wav", audioStream, &streamInf))
 		printf("error: %s\n", CRGetError(code));
 
-	streamOffset = 0;
-	frameSize = (streamInf.BitsPerSample >> 3) * streamInf.NumChannels;
-	frameCounts = CRStructureSize(audioStream) / frameSize;
-	audioEnd = CRFALSE;
-
-	player = CRAudioStream(&streamInf, playerStream);
-	//player = CRAudioBuffer(audioStream, &streamInf);
-	//
-	CRWINDOW playerWindow = CRCreateWindow("player", CRWINDOW_USEDEFAULT, CRWINDOW_USEDEFAULT, WINDOW_W, WINDOW_H);
-	if (!playerWindow)
-		printf("error: %s\n", CRGetError(0));
-	button1.texture = NULL;
-	button1.color.r = 0.7f;
-	button1.color.g = 0.3f;
-	button1.color.b = 0.8f;
-	button1.color.a = 1.0f;
-	button1.id = 1;
-	button1.style_s.shape = CRUISHAPE_ELIPSE;
-	button1.style_s.type = CRUISTYLE_FILLED;
-	button1.enableEvent = CRTRUE;
-	button1.enableVision = CRTRUE;
-	button1.sizeBox.left = 30;
-	button1.sizeBox.right = 40;
-	button1.sizeBox.top = WINDOW_H - 70;
-	button1.sizeBox.bottom = WINDOW_H - 60;
-	button1.level = 10;
-	if (code = CRWindowEntityAdd(playerWindow, &button1))
+	CRSTRUCTURE bmp1 = CRDynamic();
+	CRBMPINF inf;
+	code = CRLoadBmp("./resource/uuz.bmp", bmp1, &inf);
+	if (code)
 		printf("error: %s\n", CRGetError(code));
 
-	barLeft.texture = NULL;
-	barLeft.color.r = 0.7f;
-	barLeft.color.g = 0.65f;
-	barLeft.color.b = 0.8f;
-	barLeft.color.a = 1.0f;
-	barLeft.id = 0;
-	barLeft.style_s.shape = CRUISHAPE_RECT;
-	barLeft.style_s.type = CRUISTYLE_FILLED;
-	barLeft.enableEvent = CRFALSE;
-	barLeft.enableVision = CRTRUE;
-	barLeft.sizeBox.left = 30;
-	barLeft.sizeBox.right = 30 + progress * (WINDOW_W - 60);
-	barLeft.sizeBox.top = WINDOW_H - 67;
-	barLeft.sizeBox.bottom = WINDOW_H - 63;
-	barLeft.level = 0;
-	if (code = CRWindowEntityAdd(playerWindow, &barLeft))
-		printf("error: %s\n", CRGetError(code));
+	printf("宽: %d\n", inf.width);
+	printf("高: %d\n", inf.height);
+	printf("大小: %d\n", inf.sizeImage);
 
-	barRight.texture = NULL;
-	barRight.color.r = 0.85f;
-	barRight.color.g = 0.85f;
-	barRight.color.b = 0.8f;
-	barRight.color.a = 1.0f;
-	barRight.id = 0;
-	barRight.style_s.shape = CRUISHAPE_RECT;
-	barRight.style_s.type = CRUISTYLE_FILLED;
-	barRight.enableEvent = CRFALSE;
-	barRight.enableVision = CRTRUE;
-	barRight.sizeBox.left = 30 + progress * (WINDOW_W - 60);
-	barRight.sizeBox.right = WINDOW_W - 30;
-	barRight.sizeBox.top = WINDOW_H - 67;
-	barRight.sizeBox.bottom = WINDOW_H - 63;
-	barRight.level = 0;
-	if (code = CRWindowEntityAdd(playerWindow, &barRight))
-		printf("error: %s\n", CRGetError(code));
+	CRUINT32 w = inf.width * 3 / 4;
+	CRUINT32 h = inf.height * 3 / 4;
+	CRWINDOW picWindow = CRCreateWindow("show picture", CRWINDOW_USEDEFAULT, CRWINDOW_USEDEFAULT, w, h);
 
-	button2.texture = NULL;
-	button2.color.r = 0.6f;
-	button2.color.g = 0.2f;
-	button2.color.b = 0.2f;
-	button2.color.a = 1.0f;
-	button2.id = 2;
-	button2.style_s.shape = CRUISHAPE_ELIPSE;
-	button2.style_s.type = CRUISTYLE_FILLED;
-	button2.enableEvent = CRTRUE;
-	button2.enableVision = CRTRUE;
-	button2.sizeBox.left = WINDOW_W / 2 - 20;
-	button2.sizeBox.right = WINDOW_W / 2 + 20;
-	button2.sizeBox.top = WINDOW_H - 50;
-	button2.sizeBox.bottom = WINDOW_H - 10;
-	button2.level = 10;
-	if (code = CRWindowEntityAdd(playerWindow, &button2))
-		printf("error: %s\n", CRGetError(code));
+	CRBITMAPINF bmi;
+	bmi.w = inf.width;
+	bmi.h = inf.height;
+	bmi.pixels = CRDynCopy(bmp1, NULL);
+	bmi.uvRect.left = 0.0f;
+	bmi.uvRect.top = 0.0f;
+	bmi.uvRect.right = 1.0f;
+	bmi.uvRect.bottom = 1.0f;
+	CRFreeStructure(bmp1, NULL);
 
-	if (code = CRSetWindowCbk(playerWindow, playerEntityEvent, CRUI_ENTITY_CB))
-		printf("error: %s\n", CRGetError(code));
-	if (code = CRSetWindowCbk(playerWindow, playerMouseEvent, CRUI_MOUSE_CB))
-		printf("error: %s\n", CRGetError(code));
+	CRUIENTITY show;
+	show.texture = &bmi;
+	show.color.r = 1.0f;
+	show.color.g = 1.0f;
+	show.color.b = 1.0f;
+	show.color.a = 1.0f;
+	show.enableVision = CRTRUE;
+	show.enableEvent = CRFALSE;
+	show.level = 0;
+	show.style_s.shape = CRUISHAPE_RECT;
+	show.style_s.type = CRUISTYLE_FILLED;
+	show.sizeBox.left = 0;
+	show.sizeBox.top = 0;
+	show.sizeBox.right = w;
+	show.sizeBox.bottom = h;
+	CRWindowEntityAdd(picWindow, &show);
 
-	while (CRUIOnQuit())
-	{
-		if (!pause && !b1Pressed)
-		{
-			progress = (float)streamOffset / (float)CRStructureSize(audioStream);
-			CRUINT32 current = progress * (WINDOW_W - 70) + 35;
-			button1.sizeBox.left = current - 5;
-			button1.sizeBox.right = current + 5;
-			barLeft.sizeBox.right = current;
-			barRight.sizeBox.left = current;
-			button1.moved = CRTRUE;
-			barLeft.moved = CRTRUE;
-			barRight.moved = CRTRUE;
-		}
-		if (audioEnd)
-		{
-			CRAudioPause(player);
-			pause = CRTRUE;
-			audioEnd = CRFALSE;
-			progress = 0.0f;
-			streamOffset = 0;
-			update = CRTRUE;
-		}
-		if (update)
-		{
-			update = CRFALSE;
-			if (pause)
-			{
-				button2.color.r = 0.6f;
-				button2.color.g = 0.2f;
-				button2.color.b = 0.2f;
-				button2.update = CRTRUE;
-			}
-			else
-			{
-				button2.color.r = 0.2f;
-				button2.color.g = 0.6f;
-				button2.color.b = 0.2f;
-				button2.update = CRTRUE;
-			}
-		}
-		else CRSleep(1);
-	}
-	CRAudioClose(player);
-	CRFreeStructure(audioStream, NULL);
+	while (CRUIOnQuit()) CRSleep(1);
 
+	CRDynFreeCopy(bmi.pixels);
+
+Failed:
+	CRBinaryUninit();
 	CRUIUnInit();
-	CRBasicUninit();
-	CRAudioUnInit();
 	return 0;
 }

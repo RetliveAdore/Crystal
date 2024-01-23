@@ -102,6 +102,7 @@ typedef unsigned long CRUINT64;
 typedef void* CRLVOID;
 typedef CRINT32 CRCODE;
 
+#pragma pack(push, 1)  //千万别使用默认的字节对齐，否则无法正确读取文件
 /*
 * WAVE格式的文件相关结构体
 */
@@ -134,6 +135,36 @@ typedef struct
 	//...data...  //Search a chunk whose id is 'data', then you find the
 	//            //actual PCM data
 }CRWWHEADER;
+
+/*
+* bmp格式的文件相关结构体
+*/
+
+typedef struct
+{
+	CRINT32 width;
+	CRINT32 height;
+	CRUINT16 bPlanes;
+	CRUINT16 bitCount;
+	CRUINT32 compression;
+	CRUINT32 sizeImage;
+	CRINT32 dpiX;
+	CRINT32 dpiY;
+	CRUINT32 clrUsed;
+	CRUINT32 clrImportant;
+}CRBMPINF;
+
+typedef struct
+{
+	CRUINT16 type;  //固定为“BM”
+	CRUINT32 sizeofFile;
+	CRUINT32 reserved;  //保留，为0
+	CRUINT32 offBits;  //数据的起始位置
+	CRUINT32 headerSize;
+	CRBMPINF inf;
+}CRBMPHEADER;
+
+#pragma pack(pop)
 
 //
 
